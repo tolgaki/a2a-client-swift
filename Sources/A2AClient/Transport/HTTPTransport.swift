@@ -1,0 +1,284 @@
+// HTTPTransport.swift
+// A2AClient
+//
+// Agent2Agent Protocol - HTTP/REST Transport Implementation
+
+import Foundation
+
+/// HTTP/REST transport implementation for A2A protocol.
+///
+/// This transport uses standard HTTP methods and URL patterns as defined
+/// in the A2A HTTP/REST binding specification.
+public final class HTTPTransport: A2ATransport, @unchecked Sendable {
+    private let baseURL: URL
+    private let session: URLSession
+    private let encoder: JSONEncoder
+    private let decoder: JSONDecoder
+    private let serviceParameters: A2AServiceParameters
+    private let authenticationProvider: AuthenticationProvider?
+
+    public init(
+        baseURL: URL,
+        session: URLSession = .shared,
+        serviceParameters: A2AServiceParameters = A2AServiceParameters(),
+        authenticationProvider: AuthenticationProvider? = nil
+    ) {
+        self.baseURL = baseURL
+        self.session = session
+        self.serviceParameters = serviceParameters
+        self.authenticationProvider = authenticationProvider
+
+        self.encoder = JSONEncoder()
+        self.encoder.dateEncodingStrategy = .iso8601
+
+        self.decoder = JSONDecoder()
+        self.decoder.dateDecodingStrategy = .iso8601
+    }
+
+    // MARK: - A2ATransport Implementation
+
+    public func send<Request: Encodable, Response: Decodable>(
+        request: Request,
+        to endpoint: A2AEndpoint,
+        responseType: Response.Type
+    ) async throws -> Response {
+        let urlRequest = try await buildRequest(for: endpoint, body: request)
+        let (data, response) = try await session.data(for: urlRequest)
+
+        try validateResponse(response, data: data)
+
+        do {
+            return try decoder.decode(Response.self, from: data)
+        } catch {
+            throw A2AError.encodingError(underlying: error)
+        }
+    }
+
+    public func send<Request: Encodable>(
+        request: Request,
+        to endpoint: A2AEndpoint
+    ) async throws {
+        let urlRequest = try await buildRequest(for: endpoint, body: request)
+        let (data, response) = try await session.data(for: urlRequest)
+
+        try validateResponse(response, data: data)
+    }
+
+    public func stream<Request: Encodable>(
+        request: Request,
+        to endpoint: A2AEndpoint
+    ) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
+        let urlRequest = try await buildRequest(for: endpoint, body: request, acceptSSE: true)
+
+        return AsyncThrowingStream { continuation in
+            let streamTask = _Concurrency.Task {
+                do {
+                    let (bytes, response) = try await session.bytes(for: urlRequest)
+                    try validateResponse(response, data: nil)
+
+                    let parser = SSEParser()
+
+                    for try await line in bytes.lines {
+                        if let event = parser.parse(line: line) {
+                            if let streamingEvent = try? decodeStreamingEvent(from: event) {
+                                continuation.yield(streamingEvent)
+                            }
+                        }
+                    }
+
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                streamTask.cancel()
+            }
+        }
+    }
+
+    public func fetch<Response: Decodable>(
+        from url: URL,
+        responseType: Response.Type
+    ) async throws -> Response {
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = HTTPMethod.get.rawValue
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        if let auth = authenticationProvider {
+            urlRequest = try await auth.authenticate(request: urlRequest)
+        }
+
+        let (data, response) = try await session.data(for: urlRequest)
+        try validateResponse(response, data: data)
+
+        do {
+            return try decoder.decode(Response.self, from: data)
+        } catch {
+            throw A2AError.encodingError(underlying: error)
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    private func buildRequest<Body: Encodable>(
+        for endpoint: A2AEndpoint,
+        body: Body? = nil as Empty?,
+        acceptSSE: Bool = false
+    ) async throws -> URLRequest {
+        let url = baseURL.appendingPathComponent(endpoint.path)
+        var request = URLRequest(url: url)
+        request.httpMethod = endpoint.method.rawValue
+
+        // Set content type and accept headers
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if acceptSSE {
+            request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        } else {
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+        }
+
+        // Add service parameter headers
+        for (key, value) in serviceParameters.headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        // Encode body if present
+        if let body = body {
+            do {
+                request.httpBody = try encoder.encode(body)
+            } catch {
+                throw A2AError.encodingError(underlying: error)
+            }
+        }
+
+        // Apply authentication
+        if let auth = authenticationProvider {
+            request = try await auth.authenticate(request: request)
+        }
+
+        return request
+    }
+
+    private func validateResponse(_ response: URLResponse, data: Data?) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw A2AError.invalidResponse(message: "Invalid response type")
+        }
+
+        switch httpResponse.statusCode {
+        case 200...299:
+            return
+        case 401:
+            throw A2AError.authenticationRequired(message: "Authentication required")
+        case 403:
+            throw A2AError.authorizationFailed(message: "Access denied")
+        case 404:
+            // Try to parse error response for more details
+            if let data = data, let errorResponse = try? decoder.decode(A2AErrorResponse.self, from: data) {
+                throw errorResponse.toA2AError()
+            }
+            // Generic 404 - could be any resource, not just a task
+            throw A2AError.invalidResponse(message: "Resource not found (HTTP 404)")
+        case 415:
+            throw A2AError.contentTypeNotSupported(
+                contentType: httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "unknown",
+                message: "Unsupported media type"
+            )
+        case 400:
+            if let data = data, let errorResponse = try? decoder.decode(A2AErrorResponse.self, from: data) {
+                throw errorResponse.toA2AError()
+            }
+            throw A2AError.invalidRequest(message: "Bad request (HTTP 400)")
+        case 500...599:
+            if let data = data, let errorResponse = try? decoder.decode(A2AErrorResponse.self, from: data) {
+                throw errorResponse.toA2AError()
+            }
+            throw A2AError.internalError(message: "Server error (HTTP \(httpResponse.statusCode))")
+        default:
+            if let data = data, let errorResponse = try? decoder.decode(A2AErrorResponse.self, from: data) {
+                throw errorResponse.toA2AError()
+            }
+            throw A2AError.internalError(message: "HTTP \(httpResponse.statusCode)")
+        }
+    }
+
+    private func decodeStreamingEvent(from sseEvent: SSEEvent) throws -> StreamingEvent {
+        guard let data = sseEvent.data.data(using: .utf8) else {
+            throw A2AError.invalidResponse(message: "Invalid SSE data encoding")
+        }
+
+        // Try to decode as different event types based on event type
+        switch sseEvent.event {
+        case "status":
+            let update = try decoder.decode(TaskStatusUpdateEvent.self, from: data)
+            return .taskStatusUpdate(update)
+        case "artifact":
+            let update = try decoder.decode(TaskArtifactUpdateEvent.self, from: data)
+            return .taskArtifactUpdate(update)
+        default:
+            // Try to auto-detect the event type
+            if let update = try? decoder.decode(TaskStatusUpdateEvent.self, from: data) {
+                return .taskStatusUpdate(update)
+            } else if let update = try? decoder.decode(TaskArtifactUpdateEvent.self, from: data) {
+                return .taskArtifactUpdate(update)
+            }
+            throw A2AError.invalidResponse(message: "Unknown event type: \(sseEvent.event ?? "none")")
+        }
+    }
+}
+
+// MARK: - Empty Request Body
+
+/// Empty request body for endpoints that don't require a body.
+private struct Empty: Encodable {}
+
+// MARK: - SSE Parser
+
+/// Parser for Server-Sent Events (SSE) format.
+final class SSEParser: @unchecked Sendable {
+    private var currentEvent: String?
+    private var currentData: [String] = []
+    private var currentId: String?
+
+    struct SSEEvent {
+        let event: String?
+        let data: String
+        let id: String?
+    }
+
+    func parse(line: String) -> SSEEvent? {
+        // Empty line signals end of event
+        if line.isEmpty {
+            guard !currentData.isEmpty else { return nil }
+
+            let event = SSEEvent(
+                event: currentEvent,
+                data: currentData.joined(separator: "\n"),
+                id: currentId
+            )
+
+            // Reset state
+            currentEvent = nil
+            currentData = []
+            currentId = nil
+
+            return event
+        }
+
+        // Parse field
+        if line.hasPrefix("event:") {
+            currentEvent = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+        } else if line.hasPrefix("data:") {
+            currentData.append(String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces))
+        } else if line.hasPrefix("id:") {
+            currentId = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+        }
+        // Ignore retry: and comments (lines starting with :)
+
+        return nil
+    }
+}
+
+/// Alias for SSE event.
+typealias SSEEvent = SSEParser.SSEEvent
