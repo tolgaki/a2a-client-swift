@@ -82,29 +82,38 @@ public struct Message: Codable, Sendable, Equatable {
 
 /// Configuration for sending a message.
 public struct MessageSendConfiguration: Codable, Sendable, Equatable {
-    /// Optional accepted output modes.
+    /// Optional accepted output modes (media types).
     public let acceptedOutputModes: [String]?
 
-    /// Optional history length limit.
+    /// Optional push notification config for task updates.
+    public let pushNotificationConfig: PushNotificationConfig?
+
+    /// Maximum number of most recent messages from task history to retrieve.
+    /// - nil: No limit imposed by client
+    /// - 0: Request no history
+    /// - >0: Return at most this many recent messages
     public let historyLength: Int?
 
-    /// Optional push notification config.
-    public let pushNotificationConfig: PushNotificationConfig?
+    /// If true, wait until task reaches terminal/interrupted state before returning.
+    public let blocking: Bool?
 
     public init(
         acceptedOutputModes: [String]? = nil,
+        pushNotificationConfig: PushNotificationConfig? = nil,
         historyLength: Int? = nil,
-        pushNotificationConfig: PushNotificationConfig? = nil
+        blocking: Bool? = nil
     ) {
         self.acceptedOutputModes = acceptedOutputModes
-        self.historyLength = historyLength
         self.pushNotificationConfig = pushNotificationConfig
+        self.historyLength = historyLength
+        self.blocking = blocking
     }
 
     private enum CodingKeys: String, CodingKey {
         case acceptedOutputModes = "accepted_output_modes"
-        case historyLength = "history_length"
         case pushNotificationConfig = "push_notification_config"
+        case historyLength = "history_length"
+        case blocking
     }
 }
 
@@ -157,31 +166,21 @@ extension Message {
 extension Message {
     /// Returns all text content from this message concatenated.
     public var textContent: String {
-        parts.compactMap { part in
-            if case .text(let textPart) = part {
-                return textPart.text
-            }
-            return nil
-        }.joined(separator: "\n")
+        parts.compactMap { $0.text }.joined(separator: "\n")
     }
 
-    /// Returns all file parts from this message.
-    public var fileParts: [FilePart] {
-        parts.compactMap { part in
-            if case .file(let filePart) = part {
-                return filePart
-            }
-            return nil
-        }
+    /// Returns all parts that contain text.
+    public var textParts: [Part] {
+        parts.filter { $0.isText }
     }
 
-    /// Returns all data parts from this message.
-    public var dataParts: [DataPart] {
-        parts.compactMap { part in
-            if case .data(let dataPart) = part {
-                return dataPart
-            }
-            return nil
-        }
+    /// Returns all parts that contain raw data or URL references (file-like content).
+    public var fileParts: [Part] {
+        parts.filter { $0.isRaw || $0.isURL }
+    }
+
+    /// Returns all parts that contain structured data.
+    public var dataParts: [Part] {
+        parts.filter { $0.isData }
     }
 }

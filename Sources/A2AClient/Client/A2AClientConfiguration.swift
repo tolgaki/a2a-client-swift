@@ -16,6 +16,9 @@ public struct A2AClientConfiguration: Sendable {
     /// The A2A protocol version to use.
     public let protocolVersion: String
 
+    /// Optional tenant identifier for multi-tenant agents.
+    public let tenant: String?
+
     /// Extensions to request from the agent.
     public let extensions: [String]?
 
@@ -32,6 +35,7 @@ public struct A2AClientConfiguration: Sendable {
         baseURL: URL,
         transportBinding: TransportBinding = .httpREST,
         protocolVersion: String = "1.0",
+        tenant: String? = nil,
         extensions: [String]? = nil,
         sessionConfiguration: URLSessionConfiguration = .default,
         timeoutInterval: TimeInterval = 60,
@@ -40,6 +44,7 @@ public struct A2AClientConfiguration: Sendable {
         self.baseURL = baseURL
         self.transportBinding = transportBinding
         self.protocolVersion = protocolVersion
+        self.tenant = tenant
         self.extensions = extensions
         self.sessionConfiguration = sessionConfiguration
         self.timeoutInterval = timeoutInterval
@@ -49,17 +54,33 @@ public struct A2AClientConfiguration: Sendable {
     /// Creates a configuration from an agent card.
     public static func from(
         agentCard: AgentCard,
-        transportBinding: TransportBinding = .httpREST,
         authenticationProvider: (any AuthenticationProvider)? = nil
     ) throws -> A2AClientConfiguration {
-        guard let baseURL = URL(string: agentCard.url) else {
-            throw A2AError.invalidRequest(message: "Invalid agent URL: \(agentCard.url)")
+        // Use the first (preferred) interface
+        guard let interface = agentCard.supportedInterfaces.first else {
+            throw A2AError.invalidRequest(message: "Agent card has no supported interfaces")
+        }
+
+        guard let baseURL = URL(string: interface.url) else {
+            throw A2AError.invalidRequest(message: "Invalid agent URL: \(interface.url)")
+        }
+
+        // Map protocol binding string to enum
+        let transportBinding: TransportBinding
+        switch interface.protocolBinding.uppercased() {
+        case "JSONRPC":
+            transportBinding = .jsonRPC
+        case "HTTP+JSON", "HTTPJSON":
+            transportBinding = .httpREST
+        default:
+            transportBinding = .httpREST
         }
 
         return A2AClientConfiguration(
             baseURL: baseURL,
             transportBinding: transportBinding,
-            protocolVersion: agentCard.protocolVersion,
+            protocolVersion: interface.protocolVersion,
+            tenant: interface.tenant,
             authenticationProvider: authenticationProvider
         )
     }
@@ -67,11 +88,11 @@ public struct A2AClientConfiguration: Sendable {
 
 /// Transport binding options.
 public enum TransportBinding: String, Sendable {
-    /// HTTP/REST transport binding.
-    case httpREST = "http"
+    /// HTTP/REST transport binding (HTTP+JSON).
+    case httpREST = "HTTP+JSON"
 
     /// JSON-RPC 2.0 transport binding.
-    case jsonRPC = "jsonrpc"
+    case jsonRPC = "JSONRPC"
 }
 
 // MARK: - Builder Pattern
@@ -83,6 +104,7 @@ extension A2AClientConfiguration {
             baseURL: baseURL,
             transportBinding: transportBinding,
             protocolVersion: protocolVersion,
+            tenant: tenant,
             extensions: extensions,
             sessionConfiguration: sessionConfiguration,
             timeoutInterval: timeoutInterval,
@@ -96,6 +118,21 @@ extension A2AClientConfiguration {
             baseURL: baseURL,
             transportBinding: transportBinding,
             protocolVersion: protocolVersion,
+            tenant: tenant,
+            extensions: extensions,
+            sessionConfiguration: sessionConfiguration,
+            timeoutInterval: timeoutInterval,
+            authenticationProvider: authenticationProvider
+        )
+    }
+
+    /// Creates a new configuration with a tenant identifier.
+    public func with(tenant: String?) -> A2AClientConfiguration {
+        A2AClientConfiguration(
+            baseURL: baseURL,
+            transportBinding: transportBinding,
+            protocolVersion: protocolVersion,
+            tenant: tenant,
             extensions: extensions,
             sessionConfiguration: sessionConfiguration,
             timeoutInterval: timeoutInterval,
@@ -109,6 +146,7 @@ extension A2AClientConfiguration {
             baseURL: baseURL,
             transportBinding: transportBinding,
             protocolVersion: protocolVersion,
+            tenant: tenant,
             extensions: extensions,
             sessionConfiguration: sessionConfiguration,
             timeoutInterval: timeoutInterval,

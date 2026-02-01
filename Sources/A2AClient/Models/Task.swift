@@ -28,17 +28,13 @@ public struct A2ATask: Codable, Sendable, Equatable, Identifiable {
     /// Optional metadata associated with this task.
     public let metadata: [String: AnyCodable]?
 
-    /// The type of task (optional, for categorization).
-    public let kind: String?
-
     public init(
         id: String,
         contextId: String,
         status: TaskStatus,
         artifacts: [Artifact]? = nil,
         history: [Message]? = nil,
-        metadata: [String: AnyCodable]? = nil,
-        kind: String? = nil
+        metadata: [String: AnyCodable]? = nil
     ) {
         self.id = id
         self.contextId = contextId
@@ -46,7 +42,6 @@ public struct A2ATask: Codable, Sendable, Equatable, Identifiable {
         self.artifacts = artifacts
         self.history = history
         self.metadata = metadata
-        self.kind = kind
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -56,7 +51,6 @@ public struct A2ATask: Codable, Sendable, Equatable, Identifiable {
         case artifacts
         case history
         case metadata
-        case kind
     }
 }
 
@@ -98,57 +92,85 @@ extension A2ATask {
 
 /// Parameters for identifying a task.
 public struct TaskIdParams: Codable, Sendable, Equatable {
+    /// Optional tenant identifier.
+    public let tenant: String?
+
     /// The task identifier.
     public let id: String
 
-    /// Optional metadata for the request.
-    public let metadata: [String: AnyCodable]?
+    /// Maximum number of messages to include in history.
+    public let historyLength: Int?
 
-    public init(id: String, metadata: [String: AnyCodable]? = nil) {
+    public init(tenant: String? = nil, id: String, historyLength: Int? = nil) {
+        self.tenant = tenant
         self.id = id
-        self.metadata = metadata
+        self.historyLength = historyLength
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case tenant
+        case id
+        case historyLength = "history_length"
     }
 }
 
 // MARK: - TaskQueryParams
 
-/// Parameters for querying tasks.
+/// Parameters for listing tasks with optional filtering and pagination.
 public struct TaskQueryParams: Codable, Sendable, Equatable {
-    /// Optional context ID to filter by.
+    /// Optional tenant identifier.
+    public let tenant: String?
+
+    /// Filter tasks by context ID.
     public let contextId: String?
 
-    /// Optional list of task states to filter by.
-    public let states: [TaskState]?
+    /// Filter tasks by their current status state.
+    public let status: TaskState?
 
-    /// Maximum number of tasks to return.
-    public let limit: Int?
+    /// Maximum number of tasks to return (1-100, default 50).
+    public let pageSize: Int?
 
-    /// Pagination cursor for fetching next page.
-    public let cursor: String?
+    /// Token for pagination from previous response.
+    public let pageToken: String?
 
-    /// Optional metadata for the request.
-    public let metadata: [String: AnyCodable]?
+    /// Maximum number of messages to include in each task's history.
+    public let historyLength: Int?
+
+    /// Filter tasks with status timestamp after this date (ISO 8601).
+    public let statusTimestampAfter: Date?
+
+    /// Whether to include artifacts in returned tasks (default false).
+    public let includeArtifacts: Bool?
 
     public init(
+        tenant: String? = nil,
         contextId: String? = nil,
-        states: [TaskState]? = nil,
-        limit: Int? = nil,
-        cursor: String? = nil,
-        metadata: [String: AnyCodable]? = nil
+        status: TaskState? = nil,
+        pageSize: Int? = nil,
+        pageToken: String? = nil,
+        historyLength: Int? = nil,
+        statusTimestampAfter: Date? = nil,
+        includeArtifacts: Bool? = nil
     ) {
+        self.tenant = tenant
         self.contextId = contextId
-        self.states = states
-        self.limit = limit
-        self.cursor = cursor
-        self.metadata = metadata
+        self.status = status
+        self.pageSize = pageSize
+        self.pageToken = pageToken
+        self.historyLength = historyLength
+        self.statusTimestampAfter = statusTimestampAfter
+        self.includeArtifacts = includeArtifacts
     }
 
     private enum CodingKeys: String, CodingKey {
+        case tenant
         case contextId = "context_id"
-        case states
-        case limit
-        case cursor
-        case metadata
+        case status
+        case pageSize = "page_size"
+        case pageToken = "page_token"
+        case historyLength = "history_length"
+        case statusTimestampAfter = "status_timestamp_after"
+        case includeArtifacts = "include_artifacts"
     }
 }
 
@@ -156,19 +178,34 @@ public struct TaskQueryParams: Codable, Sendable, Equatable {
 
 /// Response from listing tasks.
 public struct TaskListResponse: Codable, Sendable, Equatable {
-    /// The list of tasks.
+    /// Array of tasks matching the criteria.
     public let tasks: [A2ATask]
 
-    /// Pagination cursor for fetching next page.
-    public let nextCursor: String?
+    /// Token for retrieving the next page. Empty string if no more results.
+    public let nextPageToken: String
 
-    public init(tasks: [A2ATask], nextCursor: String? = nil) {
+    /// The page size requested.
+    public let pageSize: Int
+
+    /// Total number of tasks available (before pagination).
+    public let totalSize: Int
+
+    public init(
+        tasks: [A2ATask],
+        nextPageToken: String = "",
+        pageSize: Int = 50,
+        totalSize: Int = 0
+    ) {
         self.tasks = tasks
-        self.nextCursor = nextCursor
+        self.nextPageToken = nextPageToken
+        self.pageSize = pageSize
+        self.totalSize = totalSize
     }
 
     private enum CodingKeys: String, CodingKey {
         case tasks
-        case nextCursor = "next_cursor"
+        case nextPageToken = "next_page_token"
+        case pageSize = "page_size"
+        case totalSize = "total_size"
     }
 }

@@ -109,9 +109,10 @@ struct ClientConfigurationTests {
             let card = AgentCard(
                 name: "Test Agent",
                 description: "A test agent",
-                url: "https://agent.example.com",
-                version: "1.0.0",
-                protocolVersion: "1.0"
+                supportedInterfaces: [
+                    AgentInterface(url: "https://agent.example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+                ],
+                version: "1.0.0"
             )
 
             let config = try A2AClientConfiguration.from(agentCard: card)
@@ -125,7 +126,9 @@ struct ClientConfigurationTests {
             let card = AgentCard(
                 name: "Test Agent",
                 description: "A test agent",
-                url: "https://agent.example.com",
+                supportedInterfaces: [
+                    AgentInterface(url: "https://agent.example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+                ],
                 version: "1.0.0"
             )
 
@@ -143,7 +146,9 @@ struct ClientConfigurationTests {
             let card = AgentCard(
                 name: "Test Agent",
                 description: "A test agent",
-                url: "",  // Invalid URL
+                supportedInterfaces: [
+                    AgentInterface(url: "", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")  // Invalid URL
+                ],
                 version: "1.0.0"
             )
 
@@ -159,12 +164,12 @@ struct ClientConfigurationTests {
     struct TransportBindingTests {
         @Test("HTTP REST raw value")
         func httpRESTRawValue() {
-            #expect(TransportBinding.httpREST.rawValue == "http")
+            #expect(TransportBinding.httpREST.rawValue == "HTTP+JSON")
         }
 
         @Test("JSON-RPC raw value")
         func jsonRPCRawValue() {
-            #expect(TransportBinding.jsonRPC.rawValue == "jsonrpc")
+            #expect(TransportBinding.jsonRPC.rawValue == "JSONRPC")
         }
     }
 }

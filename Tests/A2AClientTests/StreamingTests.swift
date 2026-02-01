@@ -19,8 +19,7 @@ struct StreamingTests {
             let event = TaskStatusUpdateEvent(
                 taskId: "task-123",
                 contextId: "ctx-456",
-                status: TaskStatus(state: .working),
-                final: false
+                status: TaskStatus(state: .working)
             )
 
             let streamingEvent = StreamingEvent.taskStatusUpdate(event)
@@ -29,8 +28,8 @@ struct StreamingTests {
             #expect(streamingEvent.contextId == "ctx-456")
             #expect(streamingEvent.isStatusUpdate == true)
             #expect(streamingEvent.isArtifactUpdate == false)
-            #expect(streamingEvent.statusUpdate != nil)
-            #expect(streamingEvent.artifactUpdate == nil)
+            #expect(streamingEvent.statusUpdateEvent != nil)
+            #expect(streamingEvent.artifactUpdateEvent == nil)
         }
 
         @Test("Task artifact update event properties")
@@ -50,7 +49,7 @@ struct StreamingTests {
             #expect(streamingEvent.taskId == "task-123")
             #expect(streamingEvent.isStatusUpdate == false)
             #expect(streamingEvent.isArtifactUpdate == true)
-            #expect(streamingEvent.artifactUpdate?.artifact.name == "output")
+            #expect(streamingEvent.artifactUpdateEvent?.artifact.name == "output")
         }
 
         @Test("Status update event encoding and decoding")
@@ -58,8 +57,7 @@ struct StreamingTests {
             let event = TaskStatusUpdateEvent(
                 taskId: "task-123",
                 contextId: "ctx-456",
-                status: TaskStatus(state: .completed),
-                final: true
+                status: TaskStatus(state: .completed)
             )
 
             let encoder = JSONEncoder()
@@ -71,7 +69,6 @@ struct StreamingTests {
             #expect(decoded.taskId == "task-123")
             #expect(decoded.contextId == "ctx-456")
             #expect(decoded.status.state == .completed)
-            #expect(decoded.final == true)
         }
 
         @Test("Artifact update event encoding and decoding")
@@ -83,6 +80,7 @@ struct StreamingTests {
             )
             let event = TaskArtifactUpdateEvent(
                 taskId: "task-456",
+                contextId: "ctx-789",
                 artifact: artifact
             )
 
@@ -93,6 +91,7 @@ struct StreamingTests {
             let decoded = try decoder.decode(TaskArtifactUpdateEvent.self, from: data)
 
             #expect(decoded.taskId == "task-456")
+            #expect(decoded.contextId == "ctx-789")
             #expect(decoded.artifact.artifactId == "art-123")
             #expect(decoded.artifact.name == "result")
         }

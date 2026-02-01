@@ -216,14 +216,29 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
         case "artifact":
             let update = try decoder.decode(TaskArtifactUpdateEvent.self, from: data)
             return .taskArtifactUpdate(update)
+        case "task":
+            let task = try decoder.decode(A2ATask.self, from: data)
+            return .task(task)
+        case "message":
+            let message = try decoder.decode(Message.self, from: data)
+            return .message(message)
         default:
-            // Try to auto-detect the event type
+            // Try to auto-detect the event type for backward compatibility
+            // or when event type header is missing
             if let update = try? decoder.decode(TaskStatusUpdateEvent.self, from: data) {
                 return .taskStatusUpdate(update)
             } else if let update = try? decoder.decode(TaskArtifactUpdateEvent.self, from: data) {
                 return .taskArtifactUpdate(update)
+            } else if let task = try? decoder.decode(A2ATask.self, from: data) {
+                return .task(task)
+            } else if let message = try? decoder.decode(Message.self, from: data) {
+                return .message(message)
             }
-            throw A2AError.invalidResponse(message: "Unknown event type: \(sseEvent.event ?? "none")")
+            // Log unknown event type for debugging
+            #if DEBUG
+            print("[A2AClient] Warning: Unknown SSE event type '\(sseEvent.event ?? "none")' - could not decode as any known type")
+            #endif
+            throw A2AError.invalidResponse(message: "Unknown or malformed event type: \(sseEvent.event ?? "none")")
         }
     }
 }
@@ -236,17 +251,25 @@ private struct Empty: Encodable {}
 // MARK: - SSE Parser
 
 /// Parser for Server-Sent Events (SSE) format.
-final class SSEParser: @unchecked Sendable {
+///
+/// This parser is designed to be used within a single async context.
+/// Each streaming connection should create its own parser instance.
+final class SSEParser {
     private var currentEvent: String?
     private var currentData: [String] = []
     private var currentId: String?
 
-    struct SSEEvent {
+    struct SSEEvent: Sendable {
         let event: String?
         let data: String
         let id: String?
     }
 
+    /// Parses a single line of SSE input.
+    ///
+    /// - Parameter line: The line to parse.
+    /// - Returns: An SSEEvent if the line completes an event, nil otherwise.
+    /// - Note: This method is not thread-safe. Use one parser per stream.
     func parse(line: String) -> SSEEvent? {
         // Empty line signals end of event
         if line.isEmpty {
@@ -277,6 +300,13 @@ final class SSEParser: @unchecked Sendable {
         // Ignore retry: and comments (lines starting with :)
 
         return nil
+    }
+
+    /// Resets the parser state.
+    func reset() {
+        currentEvent = nil
+        currentData = []
+        currentId = nil
     }
 }
 

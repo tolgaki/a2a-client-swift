@@ -28,15 +28,6 @@ public struct Artifact: Codable, Sendable, Equatable, Identifiable {
     /// Optional extension URIs for this artifact.
     public let extensions: [String]?
 
-    /// Index for streaming artifact updates (used for incremental delivery).
-    public let index: Int?
-
-    /// Whether this artifact update appends to a previous update.
-    public let append: Bool?
-
-    /// Whether this is the last chunk of a streaming artifact.
-    public let lastChunk: Bool?
-
     public var id: String { artifactId }
 
     public init(
@@ -45,10 +36,7 @@ public struct Artifact: Codable, Sendable, Equatable, Identifiable {
         description: String? = nil,
         parts: [Part],
         metadata: [String: AnyCodable]? = nil,
-        extensions: [String]? = nil,
-        index: Int? = nil,
-        append: Bool? = nil,
-        lastChunk: Bool? = nil
+        extensions: [String]? = nil
     ) {
         self.artifactId = artifactId
         self.name = name
@@ -56,9 +44,6 @@ public struct Artifact: Codable, Sendable, Equatable, Identifiable {
         self.parts = parts
         self.metadata = metadata
         self.extensions = extensions
-        self.index = index
-        self.append = append
-        self.lastChunk = lastChunk
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -68,9 +53,6 @@ public struct Artifact: Codable, Sendable, Equatable, Identifiable {
         case parts
         case metadata
         case extensions
-        case index
-        case append
-        case lastChunk = "last_chunk"
     }
 }
 
@@ -119,11 +101,6 @@ extension Artifact {
 
     /// Returns all text content from this artifact concatenated.
     public var textContent: String {
-        parts.compactMap { part in
-            if case .text(let textPart) = part {
-                return textPart.text
-            }
-            return nil
-        }.joined(separator: "\n")
+        parts.compactMap { $0.text }.joined(separator: "\n")
     }
 }

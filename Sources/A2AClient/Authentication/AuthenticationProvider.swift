@@ -2,6 +2,13 @@
 // A2AClient
 //
 // Agent2Agent Protocol - Authentication Provider Interface
+//
+// SECURITY NOTE: Authentication providers store credentials in memory.
+// - Credentials are stored as String/Data properties
+// - These remain in process memory until the provider is deallocated
+// - Consider credential lifecycle management in your application
+// - Avoid logging or serializing authentication providers
+// - Use secure credential storage (Keychain) in your app before passing to these providers
 
 import Foundation
 
@@ -9,6 +16,11 @@ import Foundation
 ///
 /// Implementations of this protocol add authentication credentials to
 /// outgoing HTTP requests based on the configured security scheme.
+///
+/// - Important: Credentials are stored in memory. Ensure proper credential
+///   lifecycle management in your application. Do not log or persist
+///   authentication providers. Use platform-specific secure storage
+///   (like Keychain on Apple platforms) for credential persistence.
 public protocol AuthenticationProvider: Sendable {
     /// Authenticates the given request by adding appropriate credentials.
     ///
@@ -31,8 +43,12 @@ public struct NoAuthentication: AuthenticationProvider {
 // MARK: - API Key Authentication
 
 /// Authentication provider for API key authentication.
+///
+/// - Important: The API key is stored in memory. Use secure storage
+///   (like Keychain) for persistent credential storage in your app.
 public struct APIKeyAuthentication: AuthenticationProvider {
     /// The API key value.
+    /// - Warning: Stored in memory as plaintext. Do not log or serialize.
     public let key: String
 
     /// The name of the header, query parameter, or cookie.
@@ -82,8 +98,12 @@ public struct APIKeyAuthentication: AuthenticationProvider {
 // MARK: - Bearer Token Authentication
 
 /// Authentication provider for HTTP Bearer token authentication.
+///
+/// - Important: The bearer token is stored in memory. Use secure storage
+///   (like Keychain) for persistent credential storage in your app.
 public struct BearerAuthentication: AuthenticationProvider {
     /// The bearer token.
+    /// - Warning: Stored in memory as plaintext. Do not log or serialize.
     public let token: String
 
     public init(token: String) {
@@ -100,11 +120,15 @@ public struct BearerAuthentication: AuthenticationProvider {
 // MARK: - Basic Authentication
 
 /// Authentication provider for HTTP Basic authentication.
+///
+/// - Important: Credentials are stored in memory. Use secure storage
+///   (like Keychain) for persistent credential storage in your app.
 public struct BasicAuthentication: AuthenticationProvider {
     /// The username.
     public let username: String
 
     /// The password.
+    /// - Warning: Stored in memory as plaintext. Do not log or serialize.
     public let password: String
 
     public init(username: String, password: String) {
@@ -129,8 +153,12 @@ public struct BasicAuthentication: AuthenticationProvider {
 /// Authentication provider for OAuth 2.0 authentication.
 ///
 /// This provider manages OAuth 2.0 access tokens and handles token refresh.
+///
+/// - Important: Tokens are stored in memory. Use secure storage
+///   (like Keychain) for persistent token storage in your app.
 public actor OAuth2Authentication: AuthenticationProvider {
     /// The current access token.
+    /// - Warning: Stored in memory as plaintext.
     private var accessToken: String?
 
     /// The refresh token for obtaining new access tokens.

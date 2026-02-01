@@ -57,7 +57,7 @@ struct ModelTests {
 
     @Suite("Part")
     struct PartTests {
-        @Test("TextPart encoding and decoding")
+        @Test("Text part encoding and decoding")
         func textPartCoding() throws {
             let part = Part.text("Hello, world!")
 
@@ -67,15 +67,12 @@ struct ModelTests {
             let decoder = JSONDecoder()
             let decoded = try decoder.decode(Part.self, from: data)
 
-            if case .text(let textPart) = decoded {
-                #expect(textPart.text == "Hello, world!")
-            } else {
-                Issue.record("Expected TextPart")
-            }
+            #expect(decoded.isText == true)
+            #expect(decoded.text == "Hello, world!")
         }
 
-        @Test("FilePart with inline data")
-        func filePartInline() throws {
+        @Test("Part with raw data")
+        func partWithRawData() throws {
             let fileData = "Test file content".data(using: .utf8)!
             let part = Part.file(data: fileData, name: "test.txt", mediaType: "text/plain")
 
@@ -85,18 +82,14 @@ struct ModelTests {
             let decoder = JSONDecoder()
             let decoded = try decoder.decode(Part.self, from: data)
 
-            if case .file(let filePart) = decoded {
-                #expect(filePart.file.name == "test.txt")
-                #expect(filePart.file.mediaType == "text/plain")
-                #expect(filePart.file.fileWithBytes != nil)
-                #expect(filePart.file.isInline == true)
-            } else {
-                Issue.record("Expected FilePart")
-            }
+            #expect(decoded.isRaw == true)
+            #expect(decoded.filename == "test.txt")
+            #expect(decoded.mediaType == "text/plain")
+            #expect(decoded.raw != nil)
         }
 
-        @Test("FilePart with URI reference")
-        func filePartURI() throws {
+        @Test("Part with URL reference")
+        func partWithURL() throws {
             let part = Part.file(uri: "https://example.com/file.pdf", name: "document.pdf", mediaType: "application/pdf")
 
             let encoder = JSONEncoder()
@@ -105,30 +98,25 @@ struct ModelTests {
             let decoder = JSONDecoder()
             let decoded = try decoder.decode(Part.self, from: data)
 
-            if case .file(let filePart) = decoded {
-                #expect(filePart.file.fileWithUri == "https://example.com/file.pdf")
-                #expect(filePart.file.name == "document.pdf")
-                #expect(filePart.file.isReference == true)
-            } else {
-                Issue.record("Expected FilePart")
-            }
+            #expect(decoded.isURL == true)
+            #expect(decoded.url == "https://example.com/file.pdf")
+            #expect(decoded.filename == "document.pdf")
+            #expect(decoded.mediaType == "application/pdf")
         }
 
-        @Test("FilePart JSON uses snake_case")
-        func filePartSnakeCase() throws {
+        @Test("Part JSON uses snake_case")
+        func partSnakeCase() throws {
             let part = Part.file(uri: "https://example.com/file.pdf", name: "doc.pdf", mediaType: "application/pdf")
 
             let encoder = JSONEncoder()
             let data = try encoder.encode(part)
             let json = String(data: data, encoding: .utf8)!
 
-            #expect(json.contains("file_with_uri"))
             #expect(json.contains("media_type"))
-            #expect(!json.contains("fileWithUri"))
             #expect(!json.contains("mediaType"))
         }
 
-        @Test("DataPart encoding and decoding")
+        @Test("Data part encoding and decoding")
         func dataPartCoding() throws {
             let part = Part.data(["key": "value", "number": 42])
 
@@ -138,11 +126,64 @@ struct ModelTests {
             let decoder = JSONDecoder()
             let decoded = try decoder.decode(Part.self, from: data)
 
-            if case .data(let dataPart) = decoded {
-                #expect(dataPart.data["key"]?.stringValue == "value")
-                #expect(dataPart.data["number"]?.intValue == 42)
-            } else {
-                Issue.record("Expected DataPart")
+            #expect(decoded.isData == true)
+            #expect(decoded.data != nil)
+        }
+
+        @Test("Part content type detection")
+        func contentTypeDetection() {
+            let textPart = Part.text("Hello")
+            #expect(textPart.contentType == .text)
+            #expect(textPart.isValid == true)
+
+            let urlPart = Part.url("https://example.com")
+            #expect(urlPart.contentType == .url)
+            #expect(urlPart.isValid == true)
+
+            let rawPart = Part.raw("data".data(using: .utf8)!)
+            #expect(rawPart.contentType == .raw)
+            #expect(rawPart.isValid == true)
+        }
+
+        @Test("Invalid base64 throws decoding error")
+        func invalidBase64Throws() throws {
+            // JSON with invalid base64 in raw field
+            let json = """
+            {"raw": "this is not valid base64!!!@#$%"}
+            """
+            let data = json.data(using: .utf8)!
+
+            let decoder = JSONDecoder()
+            #expect(throws: DecodingError.self) {
+                _ = try decoder.decode(Part.self, from: data)
+            }
+        }
+
+        @Test("Part with no content fields throws decoding error")
+        func noContentFieldsThrows() throws {
+            // JSON with no content fields
+            let json = """
+            {"filename": "test.txt", "media_type": "text/plain"}
+            """
+            let data = json.data(using: .utf8)!
+
+            let decoder = JSONDecoder()
+            #expect(throws: DecodingError.self) {
+                _ = try decoder.decode(Part.self, from: data)
+            }
+        }
+
+        @Test("Part with multiple content fields throws decoding error")
+        func multipleContentFieldsThrows() throws {
+            // JSON with both text and url fields set
+            let json = """
+            {"text": "hello", "url": "https://example.com"}
+            """
+            let data = json.data(using: .utf8)!
+
+            let decoder = JSONDecoder()
+            #expect(throws: DecodingError.self) {
+                _ = try decoder.decode(Part.self, from: data)
             }
         }
     }
@@ -321,9 +362,10 @@ struct ModelTests {
             let card = AgentCard(
                 name: "Test Agent",
                 description: "A test agent",
-                url: "https://example.com/agent",
+                supportedInterfaces: [
+                    AgentInterface(url: "https://example.com/agent", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+                ],
                 version: "1.0.0",
-                protocolVersion: "1.0",
                 capabilities: AgentCapabilities(
                     streaming: true,
                     pushNotifications: false
@@ -355,9 +397,10 @@ struct ModelTests {
             let card = AgentCard(
                 name: "Test",
                 description: "Test agent",
-                url: "https://example.com",
+                supportedInterfaces: [
+                    AgentInterface(url: "https://example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+                ],
                 version: "1.0",
-                protocolVersion: "1.0",
                 capabilities: AgentCapabilities(pushNotifications: true),
                 defaultInputModes: ["text/plain"],
                 defaultOutputModes: ["text/plain"],
@@ -368,8 +411,9 @@ struct ModelTests {
             let data = try encoder.encode(card)
             let json = String(data: data, encoding: .utf8)!
 
-            #expect(json.contains("protocol_version"))
             #expect(json.contains("supported_interfaces"))
+            #expect(json.contains("protocol_binding"))
+            #expect(json.contains("protocol_version"))
             #expect(json.contains("default_input_modes"))
             #expect(json.contains("default_output_modes"))
             #expect(json.contains("push_notifications"))
@@ -379,14 +423,13 @@ struct ModelTests {
 
         @Test("Agent card has required fields")
         func agentCardRequiredFields() {
-            // These fields are now required (non-optional)
             let card = AgentCard(
                 name: "Test",
                 description: "Required description",
-                url: "https://example.com",
+                supportedInterfaces: [
+                    AgentInterface(url: "https://example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+                ],
                 version: "1.0",
-                protocolVersion: "1.0",
-                supportedInterfaces: [.defaultInterface],
                 capabilities: AgentCapabilities(),
                 defaultInputModes: ["text/plain"],
                 defaultOutputModes: ["text/plain"],
@@ -397,6 +440,28 @@ struct ModelTests {
             #expect(card.supportedInterfaces.count >= 1)
             #expect(card.defaultInputModes.count >= 1)
             #expect(card.defaultOutputModes.count >= 1)
+        }
+
+        @Test("Agent card with empty interfaces throws decoding error")
+        func emptyInterfacesThrows() throws {
+            // JSON with empty supported_interfaces array
+            let json = """
+            {
+                "name": "Test",
+                "description": "Test agent",
+                "supported_interfaces": [],
+                "version": "1.0",
+                "default_input_modes": ["text/plain"],
+                "default_output_modes": ["text/plain"],
+                "skills": []
+            }
+            """
+            let data = json.data(using: .utf8)!
+
+            let decoder = JSONDecoder()
+            #expect(throws: DecodingError.self) {
+                _ = try decoder.decode(AgentCard.self, from: data)
+            }
         }
     }
 
@@ -425,8 +490,7 @@ struct ModelTests {
             let artifact = Artifact(
                 artifactId: "art-123",
                 name: "test",
-                parts: [.text("content")],
-                lastChunk: true
+                parts: [.text("content")]
             )
 
             let encoder = JSONEncoder()
@@ -434,9 +498,7 @@ struct ModelTests {
             let json = String(data: data, encoding: .utf8)!
 
             #expect(json.contains("artifact_id"))
-            #expect(json.contains("last_chunk"))
             #expect(!json.contains("artifactId"))
-            #expect(!json.contains("lastChunk"))
         }
 
         @Test("Artifact extensions is string array")
@@ -502,33 +564,6 @@ struct ModelTests {
             #expect(decoded["string"]?.stringValue == "value")
             #expect(decoded["number"]?.intValue == 123)
             #expect(decoded["bool"]?.boolValue == true)
-        }
-    }
-
-    // MARK: - FileContent Validation Tests
-
-    @Suite("FileContent")
-    struct FileContentTests {
-        @Test("Inline file content is valid")
-        func inlineIsValid() {
-            let content = FileContent.inline(data: "test".data(using: .utf8)!, name: "test.txt")
-            #expect(content.isValid == true)
-            #expect(content.isInline == true)
-            #expect(content.isReference == false)
-        }
-
-        @Test("Reference file content is valid")
-        func referenceIsValid() {
-            let content = FileContent.reference(uri: "https://example.com/file.txt")
-            #expect(content.isValid == true)
-            #expect(content.isInline == false)
-            #expect(content.isReference == true)
-        }
-
-        @Test("Empty file content is invalid")
-        func emptyIsInvalid() {
-            let content = FileContent()
-            #expect(content.isValid == false)
         }
     }
 }

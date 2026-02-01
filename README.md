@@ -1,6 +1,19 @@
 # A2AClient
 
+[![CI](https://github.com/a2aproject/a2a-client-swift/actions/workflows/ci.yml/badge.svg)](https://github.com/a2aproject/a2a-client-swift/actions/workflows/ci.yml)
+[![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20watchOS%20%7C%20tvOS-blue.svg)](https://developer.apple.com)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+
 A Swift client library for the Agent-to-Agent (A2A) Protocol, enabling seamless communication between applications and AI agents.
+
+## Quick Links
+
+- [Documentation](DESIGN.md)
+- [API Reference](https://a2aproject.github.io/a2a-client-swift/)
+- [A2A Protocol Spec](https://a2a-protocol.org/latest/)
+- [Issues](https://github.com/a2aproject/a2a-client-swift/issues)
+- [Contributing](CONTRIBUTING.md)
 
 ## Overview
 
@@ -25,7 +38,7 @@ Add A2AClient to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/your-org/a2a-client-swift.git", from: "1.0.0")
+    .package(url: "https://github.com/a2aproject/a2a-client-swift.git", from: "1.0.0")
 ]
 ```
 
@@ -43,7 +56,7 @@ targets: [
 ### Xcode
 
 1. Go to File > Add Package Dependencies
-2. Enter the repository URL
+2. Enter the repository URL: `https://github.com/a2aproject/a2a-client-swift`
 3. Select the version and add the package
 
 ## Quick Start
@@ -115,20 +128,32 @@ let message = Message.user("Follow-up question", contextId: conversationId)
 
 ### Parts
 
-Parts represent different types of content:
+Parts represent different types of content. The Part model uses a "oneof" pattern where exactly one content field should be set:
 
 ```swift
 // Text content
 Part.text("Hello, world!")
 
-// File with inline data (base64 encoded)
+// File with raw data (base64 encoded in JSON)
 Part.file(data: pdfData, name: "document.pdf", mediaType: "application/pdf")
 
-// File by reference (URI)
+// File by URL reference
 Part.file(uri: "https://example.com/file.pdf", name: "document.pdf", mediaType: "application/pdf")
+
+// URL reference without metadata
+Part.url("https://example.com/resource")
+
+// Raw bytes
+Part.raw(binaryData)
 
 // Structured data
 Part.data(["key": "value", "count": 42])
+
+// Check content type
+let part = Part.text("Hello")
+if part.isText {
+    print(part.text!)  // "Hello"
+}
 ```
 
 ### Tasks
@@ -187,16 +212,22 @@ for try await event in stream {
     case .taskStatusUpdate(let update):
         print("Status: \(update.status.state)")
         if let message = update.status.message {
-            print("Message: \(message.textContent)")
+            print("Message: \(message.textContent ?? "")")
         }
 
     case .taskArtifactUpdate(let update):
         print("Artifact: \(update.artifact.name ?? "unnamed")")
         for part in update.artifact.parts {
-            if case .text(let textPart) = part {
-                print(textPart.text)
+            if let text = part.text {
+                print(text)
             }
         }
+        
+    case .task(let task):
+        print("Task update: \(task.state)")
+        
+    case .message(let message):
+        print("Message: \(message.textContent ?? "")")
     }
 }
 ```
@@ -406,8 +437,12 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
+## Security
+
+For security concerns, please see our [Security Policy](SECURITY.md).
+
 ## See Also
 
 - [DESIGN.md](DESIGN.md) - Architecture and design documentation
 - [CHANGELOG.md](CHANGELOG.md) - Version history
-- [A2A Protocol Specification](https://github.com/google/A2A) - Official protocol specification
+- [A2A Protocol Specification](https://a2a-protocol.org/latest/) - Official protocol specification

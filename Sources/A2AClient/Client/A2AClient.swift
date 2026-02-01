@@ -244,24 +244,24 @@ public final class A2AClient: Sendable {
 
     // MARK: - Push Notification Configuration
 
-    /// Sets a push notification configuration for a task.
+    /// Creates a push notification configuration for a task.
     ///
     /// - Parameters:
     ///   - taskId: The task ID.
     ///   - config: The push notification configuration.
-    /// - Returns: The saved configuration.
-    public func setPushNotificationConfig(
+    /// - Returns: The saved configuration with task association.
+    public func createPushNotificationConfig(
         taskId: String,
         config: PushNotificationConfig
-    ) async throws -> PushNotificationConfig {
-        let request = SetPushNotificationConfigParams(
+    ) async throws -> TaskPushNotificationConfig {
+        let request = CreatePushNotificationConfigParams(
             taskId: taskId,
-            pushNotificationConfig: config
+            config: config
         )
         return try await transport.send(
             request: request,
-            to: .setPushNotificationConfig(taskId: taskId, configId: config.id),
-            responseType: PushNotificationConfig.self
+            to: .createPushNotificationConfig(taskId: taskId),
+            responseType: TaskPushNotificationConfig.self
         )
     }
 
@@ -274,12 +274,12 @@ public final class A2AClient: Sendable {
     public func getPushNotificationConfig(
         taskId: String,
         configId: String
-    ) async throws -> PushNotificationConfig {
+    ) async throws -> TaskPushNotificationConfig {
         let request = GetPushNotificationConfigParams(taskId: taskId, id: configId)
         return try await transport.send(
             request: request,
             to: .getPushNotificationConfig(taskId: taskId, configId: configId),
-            responseType: PushNotificationConfig.self
+            responseType: TaskPushNotificationConfig.self
         )
     }
 
@@ -287,14 +287,14 @@ public final class A2AClient: Sendable {
     ///
     /// - Parameter taskId: The task ID.
     /// - Returns: The list of configurations.
-    public func listPushNotificationConfigs(taskId: String) async throws -> [PushNotificationConfig] {
+    public func listPushNotificationConfigs(taskId: String) async throws -> [TaskPushNotificationConfig] {
         let request = ListPushNotificationConfigsParams(taskId: taskId)
         let response = try await transport.send(
             request: request,
             to: .listPushNotificationConfigs(taskId: taskId),
             responseType: ListPushNotificationConfigsResponse.self
         )
-        return response.configs
+        return response.configs ?? []
     }
 
     /// Deletes a push notification configuration.
@@ -313,6 +313,17 @@ public final class A2AClient: Sendable {
         )
     }
 
+    /// Sets a push notification configuration for a task.
+    /// - Note: Deprecated. Use `createPushNotificationConfig` instead.
+    @available(*, deprecated, renamed: "createPushNotificationConfig(taskId:config:)")
+    public func setPushNotificationConfig(
+        taskId: String,
+        config: PushNotificationConfig
+    ) async throws -> PushNotificationConfig {
+        let result = try await createPushNotificationConfig(taskId: taskId, config: config)
+        return result.pushNotificationConfig
+    }
+
     // MARK: - Extended Agent Card
 
     /// Gets the extended agent card (requires authentication).
@@ -323,7 +334,8 @@ public final class A2AClient: Sendable {
         guard var components = URLComponents(url: configuration.baseURL, resolvingAgainstBaseURL: true) else {
             throw A2AError.invalidRequest(message: "Invalid base URL")
         }
-        components.path = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/agentCard:extended"
+        let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        components.path = basePath.isEmpty ? "/extendedAgentCard" : "/\(basePath)/extendedAgentCard"
         guard let url = components.url else {
             throw A2AError.invalidRequest(message: "Could not construct extended agent card URL")
         }

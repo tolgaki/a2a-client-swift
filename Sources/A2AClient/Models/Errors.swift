@@ -2,6 +2,7 @@
 // A2AClient
 //
 // Agent2Agent Protocol - Error Definitions
+// Spec: https://a2a-protocol.org/latest/specification/#332-error-handling
 
 import Foundation
 
@@ -27,6 +28,12 @@ public enum A2AError: Error, Sendable, Equatable {
 
     /// A required extension is not supported by the client.
     case extensionSupportRequired(extensionUri: String, message: String?)
+
+    /// An agent returned a response that does not conform to the specification.
+    case invalidAgentResponse(message: String?)
+
+    /// The agent does not have an extended agent card configured.
+    case extendedAgentCardNotConfigured(message: String?)
 
     /// Authentication failed or is required.
     case authenticationRequired(message: String?)
@@ -71,6 +78,10 @@ public enum A2AError: Error, Sendable, Equatable {
             return l1 == r1 && l2 == r2 && l3 == r3
         case (.extensionSupportRequired(let l1, let l2), .extensionSupportRequired(let r1, let r2)):
             return l1 == r1 && l2 == r2
+        case (.invalidAgentResponse(let l), .invalidAgentResponse(let r)):
+            return l == r
+        case (.extendedAgentCardNotConfigured(let l), .extendedAgentCardNotConfigured(let r)):
+            return l == r
         case (.authenticationRequired(let l), .authenticationRequired(let r)):
             return l == r
         case (.authorizationFailed(let l), .authorizationFailed(let r)):
@@ -114,6 +125,10 @@ extension A2AError: LocalizedError {
             return message ?? "Protocol version not supported: \(version)"
         case .extensionSupportRequired(let uri, let message):
             return message ?? "Required extension not supported: \(uri)"
+        case .invalidAgentResponse(let message):
+            return message ?? "Agent returned an invalid response"
+        case .extendedAgentCardNotConfigured(let message):
+            return message ?? "Extended agent card not configured"
         case .authenticationRequired(let message):
             return message ?? "Authentication required"
         case .authorizationFailed(let message):
@@ -138,7 +153,13 @@ extension A2AError: LocalizedError {
 
 // MARK: - JSON-RPC Error Codes
 
-/// Standard JSON-RPC 2.0 error codes.
+/// Standard JSON-RPC 2.0 error codes and A2A-specific codes.
+///
+/// JSON-RPC 2.0 reserves error codes from -32000 to -32099 for implementation-defined
+/// server errors. A2A uses this range for protocol-specific errors.
+///
+/// - Note: Error codes -32008 (invalidAgentResponse) and -32009 (extendedAgentCardNotConfigured)
+///   are A2AClient extensions not in the official A2A spec, added for better error handling.
 public enum JSONRPCErrorCode: Int, Sendable {
     /// Invalid JSON was received.
     case parseError = -32700
@@ -177,6 +198,18 @@ public enum JSONRPCErrorCode: Int, Sendable {
 
     /// Extension support required.
     case extensionSupportRequired = -32007
+
+    /// Invalid agent response (A2AClient extension, not in official spec).
+    case invalidAgentResponse = -32008
+
+    /// Extended agent card not configured (A2AClient extension, not in official spec).
+    case extendedAgentCardNotConfigured = -32009
+
+    /// Authentication required.
+    case authenticationRequired = -32010
+
+    /// Authorization failed.
+    case authorizationFailed = -32011
 }
 
 // MARK: - Error Response Model
@@ -254,6 +287,14 @@ public struct A2AErrorResponse: Codable, Sendable, Equatable {
         case JSONRPCErrorCode.extensionSupportRequired.rawValue:
             let extensionUri = extractString("extension_uri") ?? extractString("extensionUri") ?? ""
             return .extensionSupportRequired(extensionUri: extensionUri, message: message)
+        case JSONRPCErrorCode.invalidAgentResponse.rawValue:
+            return .invalidAgentResponse(message: message)
+        case JSONRPCErrorCode.extendedAgentCardNotConfigured.rawValue:
+            return .extendedAgentCardNotConfigured(message: message)
+        case JSONRPCErrorCode.authenticationRequired.rawValue:
+            return .authenticationRequired(message: message)
+        case JSONRPCErrorCode.authorizationFailed.rawValue:
+            return .authorizationFailed(message: message)
         case JSONRPCErrorCode.invalidRequest.rawValue, JSONRPCErrorCode.invalidParams.rawValue:
             return .invalidRequest(message: message)
         case JSONRPCErrorCode.internalError.rawValue:
