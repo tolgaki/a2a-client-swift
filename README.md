@@ -375,6 +375,59 @@ let response2 = try await client.sendMessage(
 let tasks = try await client.listTasks(contextId: contextId)
 ```
 
+## Agent-to-Agent Orchestration
+
+The library's core value proposition is agents talking to agents. The [`Examples/TravelPlannerAgent.swift`](Examples/TravelPlannerAgent.swift) example shows an on-device orchestrator that discovers remote agents, routes by skill, and aggregates results — covering every major API pattern:
+
+```swift
+import A2AClient
+
+// Discover agents via well-known URLs
+let (card, client) = try await A2A.discover(domain: "weather.example.com")
+
+// Route by inspecting skills and capabilities
+let weatherAgent = agents.first { agent in
+    agent.card.skills.contains { !Set(["weather"]).isDisjoint(with: $0.tags) }
+}
+
+// Blocking request for immediate results
+let config = MessageSendConfiguration(blocking: true)
+let response = try await client.sendMessage("Weather in Tokyo?", configuration: config)
+
+// Streaming for real-time updates
+let stream = try await client.sendStreamingMessage("Find flights to Tokyo")
+for try await event in stream {
+    switch event {
+    case .taskStatusUpdate(let update):
+        print("Status: \(update.status.state.rawValue)")
+    case .taskArtifactUpdate(let update):
+        print("Result: \(update.artifact.textContent)")
+    case .task(let task):
+        print("Done: \(task.state.rawValue)")
+    case .message(let message):
+        print("Reply: \(message.textContent)")
+    }
+}
+
+// Multi-turn conversation with contextId
+let contextId = UUID().uuidString
+var bookingResponse = try await client.sendMessage("Book a hotel in Tokyo", contextId: contextId)
+if let task = bookingResponse.task, task.needsInput {
+    bookingResponse = try await client.sendMessage("$200-300/night, 4-star", contextId: contextId, taskId: task.id)
+}
+
+// Concurrent orchestration with TaskGroup
+let results = try await withThrowingTaskGroup(of: (String, String).self) { group in
+    group.addTask { ("weather", try await checkWeather(using: weatherAgent)) }
+    group.addTask { ("flights", try await searchFlights(using: flightsAgent)) }
+    var collected: [String: String] = [:]
+    for try await (key, value) in group { collected[key] = value }
+    return collected
+}
+```
+
+See the [full example](Examples/TravelPlannerAgent.swift) for the complete orchestrator with error handling and polling fallback.
+
 ## Error Handling
 
 ```swift
