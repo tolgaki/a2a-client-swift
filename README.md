@@ -426,7 +426,9 @@ let results = try await withThrowingTaskGroup(of: (String, String).self) { group
 }
 ```
 
-See the [full example](Examples/TravelPlannerAgent.swift) for the complete orchestrator with error handling and polling fallback.
+See the [full example](Examples/TravelPlannerAgent/TravelPlannerAgent.swift) for the complete orchestrator with error handling and polling fallback.
+
+For a more advanced pattern, the [`SmartTravelPlanner`](Examples/SmartTravelPlanner/SmartTravelPlannerAgent.swift) example adds an `IntentRouter` protocol that classifies user intent, selects agents, and crafts per-agent prompts — showing how an on-device LLM (e.g. Apple Intelligence / Foundation Models) can drive agent orchestration from natural language queries.
 
 ## Error Handling
 

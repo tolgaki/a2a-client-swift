@@ -25,7 +25,12 @@ let package = Package(
         .executableTarget(
             name: "TravelPlannerAgent",
             dependencies: ["A2AClient"],
-            path: "Examples"
+            path: "Examples/TravelPlannerAgent"
+        ),
+        .executableTarget(
+            name: "SmartTravelPlanner",
+            dependencies: ["A2AClient"],
+            path: "Examples/SmartTravelPlanner"
         ),
         .testTarget(
             name: "A2AClientTests",
