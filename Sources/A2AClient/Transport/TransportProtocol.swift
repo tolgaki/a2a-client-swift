@@ -30,6 +30,13 @@ public protocol A2ATransport: Sendable {
         to endpoint: A2AEndpoint
     ) async throws -> AsyncThrowingStream<StreamingEvent, Error>
 
+    /// Sends a GET request with query parameters and returns a decoded response.
+    func get<Response: Decodable>(
+        from endpoint: A2AEndpoint,
+        queryItems: [URLQueryItem],
+        responseType: Response.Type
+    ) async throws -> Response
+
     /// Fetches data from a URL (used for agent card discovery).
     func fetch<Response: Decodable>(
         from url: URL,
@@ -48,77 +55,93 @@ public struct A2AEndpoint: Sendable, Equatable {
     /// Whether this endpoint returns a streaming response.
     public let isStreaming: Bool
 
-    public init(method: HTTPMethod, path: String, isStreaming: Bool = false) {
+    /// The JSON-RPC method name for this endpoint.
+    public let jsonRPCMethod: String?
+
+    public init(method: HTTPMethod, path: String, isStreaming: Bool = false, jsonRPCMethod: String? = nil) {
         self.method = method
         self.path = path
         self.isStreaming = isStreaming
+        self.jsonRPCMethod = jsonRPCMethod
     }
 
     // MARK: - Standard A2A Endpoints (per spec)
 
     /// Send a message to the agent.
     /// Spec: POST /message:send (or /{tenant}/message:send)
-    public static let sendMessage = A2AEndpoint(method: .post, path: "/message:send")
+    public static let sendMessage = A2AEndpoint(method: .post, path: "/message:send", jsonRPCMethod: "message/send")
 
     /// Send a streaming message to the agent.
     /// Spec: POST /message:stream (or /{tenant}/message:stream)
-    public static let sendStreamingMessage = A2AEndpoint(method: .post, path: "/message:stream", isStreaming: true)
+    public static let sendStreamingMessage = A2AEndpoint(method: .post, path: "/message:stream", isStreaming: true, jsonRPCMethod: "message/stream")
 
     /// Get a task by ID.
     /// Spec: GET /tasks/{id} (or /{tenant}/tasks/{id})
     public static func getTask(id: String) -> A2AEndpoint {
-        A2AEndpoint(method: .get, path: "/tasks/\(Self.sanitizePathComponent(id))")
+        A2AEndpoint(method: .get, path: "/tasks/\(Self.sanitizePathComponent(id))", jsonRPCMethod: "tasks/get")
     }
 
     /// List tasks.
     /// Spec: GET /tasks (or /{tenant}/tasks)
-    public static let listTasks = A2AEndpoint(method: .get, path: "/tasks")
+    public static let listTasks = A2AEndpoint(method: .get, path: "/tasks", jsonRPCMethod: "tasks/list")
 
     /// Cancel a task.
     /// Spec: POST /tasks/{id}:cancel (or /{tenant}/tasks/{id}:cancel)
     public static func cancelTask(id: String) -> A2AEndpoint {
-        A2AEndpoint(method: .post, path: "/tasks/\(Self.sanitizePathComponent(id)):cancel")
+        A2AEndpoint(method: .post, path: "/tasks/\(Self.sanitizePathComponent(id)):cancel", jsonRPCMethod: "tasks/cancel")
     }
 
     /// Subscribe to task updates.
     /// Spec: GET /tasks/{id}:subscribe (or /{tenant}/tasks/{id}:subscribe)
     public static func subscribeToTask(id: String) -> A2AEndpoint {
-        A2AEndpoint(method: .get, path: "/tasks/\(Self.sanitizePathComponent(id)):subscribe", isStreaming: true)
+        A2AEndpoint(method: .get, path: "/tasks/\(Self.sanitizePathComponent(id)):subscribe", isStreaming: true, jsonRPCMethod: "tasks/resubscribe")
     }
 
     /// Create push notification configuration.
     /// Spec: POST /tasks/{taskId}/pushNotificationConfigs
     public static func createPushNotificationConfig(taskId: String) -> A2AEndpoint {
-        A2AEndpoint(method: .post, path: "/tasks/\(Self.sanitizePathComponent(taskId))/pushNotificationConfigs")
+        A2AEndpoint(method: .post, path: "/tasks/\(Self.sanitizePathComponent(taskId))/pushNotificationConfigs", jsonRPCMethod: "tasks/pushNotificationConfig/set")
     }
 
     /// Get push notification configuration.
     /// Spec: GET /tasks/{taskId}/pushNotificationConfigs/{id}
     public static func getPushNotificationConfig(taskId: String, configId: String) -> A2AEndpoint {
-        A2AEndpoint(method: .get, path: "/tasks/\(Self.sanitizePathComponent(taskId))/pushNotificationConfigs/\(Self.sanitizePathComponent(configId))")
+        A2AEndpoint(method: .get, path: "/tasks/\(Self.sanitizePathComponent(taskId))/pushNotificationConfigs/\(Self.sanitizePathComponent(configId))", jsonRPCMethod: "tasks/pushNotificationConfig/get")
     }
 
     /// List push notification configurations.
     /// Spec: GET /tasks/{taskId}/pushNotificationConfigs
     public static func listPushNotificationConfigs(taskId: String) -> A2AEndpoint {
-        A2AEndpoint(method: .get, path: "/tasks/\(Self.sanitizePathComponent(taskId))/pushNotificationConfigs")
+        A2AEndpoint(method: .get, path: "/tasks/\(Self.sanitizePathComponent(taskId))/pushNotificationConfigs", jsonRPCMethod: "tasks/pushNotificationConfig/list")
     }
 
     /// Delete push notification configuration.
     /// Spec: DELETE /tasks/{taskId}/pushNotificationConfigs/{id}
     public static func deletePushNotificationConfig(taskId: String, configId: String) -> A2AEndpoint {
-        A2AEndpoint(method: .delete, path: "/tasks/\(Self.sanitizePathComponent(taskId))/pushNotificationConfigs/\(Self.sanitizePathComponent(configId))")
+        A2AEndpoint(method: .delete, path: "/tasks/\(Self.sanitizePathComponent(taskId))/pushNotificationConfigs/\(Self.sanitizePathComponent(configId))", jsonRPCMethod: "tasks/pushNotificationConfig/delete")
     }
 
     /// Get extended agent card.
     /// Spec: GET /extendedAgentCard (or /{tenant}/extendedAgentCard)
-    public static let getExtendedAgentCard = A2AEndpoint(method: .get, path: "/extendedAgentCard")
+    public static let getExtendedAgentCard = A2AEndpoint(method: .get, path: "/extendedAgentCard", jsonRPCMethod: "agent/authenticatedExtendedCard")
+
+    /// Returns the path with an optional tenant prefix prepended.
+    ///
+    /// - Parameter tenant: Optional tenant identifier. If set, the path becomes `/{tenant}{path}`.
+    /// - Returns: The path with tenant prefix if applicable.
+    public func pathWithTenant(_ tenant: String?) -> String {
+        guard let tenant = tenant, !tenant.isEmpty else {
+            return path
+        }
+        let sanitizedTenant = Self.sanitizePathComponent(tenant)
+        return "/\(sanitizedTenant)\(path)"
+    }
 
     // MARK: - Path Sanitization
 
     /// Sanitizes a path component to prevent path traversal attacks.
     /// Percent-encodes special characters and removes path separators.
-    private static func sanitizePathComponent(_ component: String) -> String {
+    static func sanitizePathComponent(_ component: String) -> String {
         // Remove any path separators and null bytes
         let sanitized = component
             .replacingOccurrences(of: "/", with: "")
@@ -134,7 +157,7 @@ public struct A2AEndpoint: Sendable, Equatable {
     /// Legacy endpoint - use createPushNotificationConfig instead.
     @available(*, deprecated, renamed: "createPushNotificationConfig(taskId:)")
     public static func setPushNotificationConfig(taskId: String, configId: String) -> A2AEndpoint {
-        A2AEndpoint(method: .put, path: "/tasks/\(taskId)/pushNotificationConfigs/\(configId)")
+        A2AEndpoint(method: .put, path: "/tasks/\(sanitizePathComponent(taskId))/pushNotificationConfigs/\(sanitizePathComponent(configId))", jsonRPCMethod: "tasks/pushNotificationConfig/set")
     }
 }
 
@@ -154,9 +177,13 @@ public struct A2AServiceParameters: Sendable {
     /// Comma-separated list of extension URIs.
     public let extensions: [String]?
 
-    public init(version: String = "1.0", extensions: [String]? = nil) {
+    /// Optional tenant identifier for multi-tenant agents.
+    public let tenant: String?
+
+    public init(version: String = "1.0", extensions: [String]? = nil, tenant: String? = nil) {
         self.version = version
         self.extensions = extensions
+        self.tenant = tenant
     }
 
     /// HTTP header name for version.

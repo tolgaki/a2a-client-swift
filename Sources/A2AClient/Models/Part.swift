@@ -49,6 +49,8 @@ public struct Part: Codable, Sendable, Equatable {
         filename: String? = nil,
         mediaType: String? = nil
     ) {
+        let contentFieldCount = [text != nil, raw != nil, url != nil, data != nil].filter { $0 }.count
+        precondition(contentFieldCount == 1, "Part must contain exactly one content field (text, raw, url, or data), found \(contentFieldCount)")
         self.text = text
         self.raw = raw
         self.url = url

@@ -3,567 +3,508 @@
 //
 // Tests for A2A protocol model types
 
-import Testing
+import XCTest
 import Foundation
 @testable import A2AClient
 
-@Suite("Model Tests")
-struct ModelTests {
+final class ModelTests: XCTestCase {
 
     // MARK: - TaskState Tests
 
-    @Suite("TaskState")
-    struct TaskStateTests {
-        @Test("Terminal states are correctly identified")
-        func terminalStates() {
-            #expect(TaskState.completed.isTerminal == true)
-            #expect(TaskState.failed.isTerminal == true)
-            #expect(TaskState.cancelled.isTerminal == true)
-            #expect(TaskState.rejected.isTerminal == true)
+    func testTaskState_TerminalStatesAreCorrectlyIdentified() {
+        XCTAssertTrue(TaskState.completed.isTerminal)
+        XCTAssertTrue(TaskState.failed.isTerminal)
+        XCTAssertTrue(TaskState.cancelled.isTerminal)
+        XCTAssertTrue(TaskState.rejected.isTerminal)
 
-            #expect(TaskState.unspecified.isTerminal == false)
-            #expect(TaskState.submitted.isTerminal == false)
-            #expect(TaskState.working.isTerminal == false)
-            #expect(TaskState.inputRequired.isTerminal == false)
-            #expect(TaskState.authRequired.isTerminal == false)
-        }
+        XCTAssertFalse(TaskState.unspecified.isTerminal)
+        XCTAssertFalse(TaskState.submitted.isTerminal)
+        XCTAssertFalse(TaskState.working.isTerminal)
+        XCTAssertFalse(TaskState.inputRequired.isTerminal)
+        XCTAssertFalse(TaskState.authRequired.isTerminal)
+    }
 
-        @Test("Input-capable states are correctly identified")
-        func inputCapableStates() {
-            #expect(TaskState.inputRequired.canReceiveInput == true)
-            #expect(TaskState.authRequired.canReceiveInput == true)
+    func testTaskState_InputCapableStatesAreCorrectlyIdentified() {
+        XCTAssertTrue(TaskState.inputRequired.canReceiveInput)
+        XCTAssertTrue(TaskState.authRequired.canReceiveInput)
 
-            #expect(TaskState.unspecified.canReceiveInput == false)
-            #expect(TaskState.submitted.canReceiveInput == false)
-            #expect(TaskState.working.canReceiveInput == false)
-            #expect(TaskState.completed.canReceiveInput == false)
-        }
+        XCTAssertFalse(TaskState.unspecified.canReceiveInput)
+        XCTAssertFalse(TaskState.submitted.canReceiveInput)
+        XCTAssertFalse(TaskState.working.canReceiveInput)
+        XCTAssertFalse(TaskState.completed.canReceiveInput)
+    }
 
-        @Test("All states have correct raw values")
-        func rawValues() {
-            #expect(TaskState.unspecified.rawValue == "unspecified")
-            #expect(TaskState.submitted.rawValue == "submitted")
-            #expect(TaskState.working.rawValue == "working")
-            #expect(TaskState.completed.rawValue == "completed")
-            #expect(TaskState.failed.rawValue == "failed")
-            #expect(TaskState.cancelled.rawValue == "cancelled")
-            #expect(TaskState.inputRequired.rawValue == "input_required")
-            #expect(TaskState.rejected.rawValue == "rejected")
-            #expect(TaskState.authRequired.rawValue == "auth_required")
-        }
+    func testTaskState_AllStatesHaveCorrectRawValues() {
+        XCTAssertEqual(TaskState.unspecified.rawValue, "unspecified")
+        XCTAssertEqual(TaskState.submitted.rawValue, "submitted")
+        XCTAssertEqual(TaskState.working.rawValue, "working")
+        XCTAssertEqual(TaskState.completed.rawValue, "completed")
+        XCTAssertEqual(TaskState.failed.rawValue, "failed")
+        XCTAssertEqual(TaskState.cancelled.rawValue, "cancelled")
+        XCTAssertEqual(TaskState.inputRequired.rawValue, "input_required")
+        XCTAssertEqual(TaskState.rejected.rawValue, "rejected")
+        XCTAssertEqual(TaskState.authRequired.rawValue, "auth_required")
     }
 
     // MARK: - Part Tests
 
-    @Suite("Part")
-    struct PartTests {
-        @Test("Text part encoding and decoding")
-        func textPartCoding() throws {
-            let part = Part.text("Hello, world!")
+    func testPart_TextPartEncodingAndDecoding() throws {
+        let part = Part.text("Hello, world!")
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(part)
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(part)
 
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode(Part.self, from: data)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Part.self, from: data)
 
-            #expect(decoded.isText == true)
-            #expect(decoded.text == "Hello, world!")
+        XCTAssertTrue(decoded.isText)
+        XCTAssertEqual(decoded.text, "Hello, world!")
+    }
+
+    func testPart_WithRawData() throws {
+        let fileData = "Test file content".data(using: .utf8)!
+        let part = Part.file(data: fileData, name: "test.txt", mediaType: "text/plain")
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(part)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Part.self, from: data)
+
+        XCTAssertTrue(decoded.isRaw)
+        XCTAssertEqual(decoded.filename, "test.txt")
+        XCTAssertEqual(decoded.mediaType, "text/plain")
+        XCTAssertNotNil(decoded.raw)
+    }
+
+    func testPart_WithURLReference() throws {
+        let part = Part.file(uri: "https://example.com/file.pdf", name: "document.pdf", mediaType: "application/pdf")
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(part)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Part.self, from: data)
+
+        XCTAssertTrue(decoded.isURL)
+        XCTAssertEqual(decoded.url, "https://example.com/file.pdf")
+        XCTAssertEqual(decoded.filename, "document.pdf")
+        XCTAssertEqual(decoded.mediaType, "application/pdf")
+    }
+
+    func testPart_JSONUsesSnakeCase() throws {
+        let part = Part.file(uri: "https://example.com/file.pdf", name: "doc.pdf", mediaType: "application/pdf")
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(part)
+        let json = String(data: data, encoding: .utf8)!
+
+        XCTAssertTrue(json.contains("media_type"))
+        XCTAssertFalse(json.contains("mediaType"))
+    }
+
+    func testPart_DataPartEncodingAndDecoding() throws {
+        let part = Part.data(["key": "value", "number": 42])
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(part)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Part.self, from: data)
+
+        XCTAssertTrue(decoded.isData)
+        XCTAssertNotNil(decoded.data)
+    }
+
+    func testPart_ContentTypeDetection() {
+        let textPart = Part.text("Hello")
+        XCTAssertEqual(textPart.contentType, .text)
+        XCTAssertTrue(textPart.isValid)
+
+        let urlPart = Part.url("https://example.com")
+        XCTAssertEqual(urlPart.contentType, .url)
+        XCTAssertTrue(urlPart.isValid)
+
+        let rawPart = Part.raw("data".data(using: .utf8)!)
+        XCTAssertEqual(rawPart.contentType, .raw)
+        XCTAssertTrue(rawPart.isValid)
+    }
+
+    func testPart_InvalidBase64ThrowsDecodingError() throws {
+        // JSON with invalid base64 in raw field
+        let json = """
+        {"raw": "this is not valid base64!!!@#$%"}
+        """
+        let data = json.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        XCTAssertThrowsError(try decoder.decode(Part.self, from: data)) { error in
+            XCTAssertTrue(error is DecodingError)
         }
+    }
 
-        @Test("Part with raw data")
-        func partWithRawData() throws {
-            let fileData = "Test file content".data(using: .utf8)!
-            let part = Part.file(data: fileData, name: "test.txt", mediaType: "text/plain")
+    func testPart_NoContentFieldsThrowsDecodingError() throws {
+        // JSON with no content fields
+        let json = """
+        {"filename": "test.txt", "media_type": "text/plain"}
+        """
+        let data = json.data(using: .utf8)!
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(part)
-
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode(Part.self, from: data)
-
-            #expect(decoded.isRaw == true)
-            #expect(decoded.filename == "test.txt")
-            #expect(decoded.mediaType == "text/plain")
-            #expect(decoded.raw != nil)
+        let decoder = JSONDecoder()
+        XCTAssertThrowsError(try decoder.decode(Part.self, from: data)) { error in
+            XCTAssertTrue(error is DecodingError)
         }
+    }
 
-        @Test("Part with URL reference")
-        func partWithURL() throws {
-            let part = Part.file(uri: "https://example.com/file.pdf", name: "document.pdf", mediaType: "application/pdf")
+    func testPart_MultipleContentFieldsThrowsDecodingError() throws {
+        // JSON with both text and url fields set
+        let json = """
+        {"text": "hello", "url": "https://example.com"}
+        """
+        let data = json.data(using: .utf8)!
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(part)
-
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode(Part.self, from: data)
-
-            #expect(decoded.isURL == true)
-            #expect(decoded.url == "https://example.com/file.pdf")
-            #expect(decoded.filename == "document.pdf")
-            #expect(decoded.mediaType == "application/pdf")
-        }
-
-        @Test("Part JSON uses snake_case")
-        func partSnakeCase() throws {
-            let part = Part.file(uri: "https://example.com/file.pdf", name: "doc.pdf", mediaType: "application/pdf")
-
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(part)
-            let json = String(data: data, encoding: .utf8)!
-
-            #expect(json.contains("media_type"))
-            #expect(!json.contains("mediaType"))
-        }
-
-        @Test("Data part encoding and decoding")
-        func dataPartCoding() throws {
-            let part = Part.data(["key": "value", "number": 42])
-
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(part)
-
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode(Part.self, from: data)
-
-            #expect(decoded.isData == true)
-            #expect(decoded.data != nil)
-        }
-
-        @Test("Part content type detection")
-        func contentTypeDetection() {
-            let textPart = Part.text("Hello")
-            #expect(textPart.contentType == .text)
-            #expect(textPart.isValid == true)
-
-            let urlPart = Part.url("https://example.com")
-            #expect(urlPart.contentType == .url)
-            #expect(urlPart.isValid == true)
-
-            let rawPart = Part.raw("data".data(using: .utf8)!)
-            #expect(rawPart.contentType == .raw)
-            #expect(rawPart.isValid == true)
-        }
-
-        @Test("Invalid base64 throws decoding error")
-        func invalidBase64Throws() throws {
-            // JSON with invalid base64 in raw field
-            let json = """
-            {"raw": "this is not valid base64!!!@#$%"}
-            """
-            let data = json.data(using: .utf8)!
-
-            let decoder = JSONDecoder()
-            #expect(throws: DecodingError.self) {
-                _ = try decoder.decode(Part.self, from: data)
-            }
-        }
-
-        @Test("Part with no content fields throws decoding error")
-        func noContentFieldsThrows() throws {
-            // JSON with no content fields
-            let json = """
-            {"filename": "test.txt", "media_type": "text/plain"}
-            """
-            let data = json.data(using: .utf8)!
-
-            let decoder = JSONDecoder()
-            #expect(throws: DecodingError.self) {
-                _ = try decoder.decode(Part.self, from: data)
-            }
-        }
-
-        @Test("Part with multiple content fields throws decoding error")
-        func multipleContentFieldsThrows() throws {
-            // JSON with both text and url fields set
-            let json = """
-            {"text": "hello", "url": "https://example.com"}
-            """
-            let data = json.data(using: .utf8)!
-
-            let decoder = JSONDecoder()
-            #expect(throws: DecodingError.self) {
-                _ = try decoder.decode(Part.self, from: data)
-            }
+        let decoder = JSONDecoder()
+        XCTAssertThrowsError(try decoder.decode(Part.self, from: data)) { error in
+            XCTAssertTrue(error is DecodingError)
         }
     }
 
     // MARK: - Message Tests
 
-    @Suite("Message")
-    struct MessageTests {
-        @Test("User message creation")
-        func userMessage() {
-            let message = Message.user("Hello, agent!")
+    func testMessage_UserMessageCreation() {
+        let message = Message.user("Hello, agent!")
 
-            #expect(message.role == .user)
-            #expect(message.textContent == "Hello, agent!")
-            #expect(message.parts.count == 1)
-        }
+        XCTAssertEqual(message.role, .user)
+        XCTAssertEqual(message.textContent, "Hello, agent!")
+        XCTAssertEqual(message.parts.count, 1)
+    }
 
-        @Test("Agent message creation")
-        func agentMessage() {
-            let message = Message.agent("Hello, user!")
+    func testMessage_AgentMessageCreation() {
+        let message = Message.agent("Hello, user!")
 
-            #expect(message.role == .agent)
-            #expect(message.textContent == "Hello, user!")
-        }
+        XCTAssertEqual(message.role, .agent)
+        XCTAssertEqual(message.textContent, "Hello, user!")
+    }
 
-        @Test("Message with context and task IDs")
-        func messageWithIds() {
-            let message = Message.user("Continue", contextId: "ctx-123", taskId: "task-456")
+    func testMessage_WithContextAndTaskIds() {
+        let message = Message.user("Continue", contextId: "ctx-123", taskId: "task-456")
 
-            #expect(message.contextId == "ctx-123")
-            #expect(message.taskId == "task-456")
-        }
+        XCTAssertEqual(message.contextId, "ctx-123")
+        XCTAssertEqual(message.taskId, "task-456")
+    }
 
-        @Test("Message encoding and decoding")
-        func messageCoding() throws {
-            let message = Message(
-                messageId: "msg-123",
-                role: .user,
-                parts: [.text("Test message")],
-                contextId: "ctx-456"
-            )
+    func testMessage_EncodingAndDecoding() throws {
+        let message = Message(
+            messageId: "msg-123",
+            role: .user,
+            parts: [.text("Test message")],
+            contextId: "ctx-456"
+        )
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(message)
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(message)
 
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode(Message.self, from: data)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Message.self, from: data)
 
-            #expect(decoded.messageId == "msg-123")
-            #expect(decoded.role == .user)
-            #expect(decoded.contextId == "ctx-456")
-            #expect(decoded.textContent == "Test message")
-        }
+        XCTAssertEqual(decoded.messageId, "msg-123")
+        XCTAssertEqual(decoded.role, .user)
+        XCTAssertEqual(decoded.contextId, "ctx-456")
+        XCTAssertEqual(decoded.textContent, "Test message")
+    }
 
-        @Test("Message JSON uses snake_case")
-        func messageSnakeCase() throws {
-            let message = Message(
-                messageId: "msg-123",
-                role: .user,
-                parts: [.text("Test")],
-                contextId: "ctx-456",
-                taskId: "task-789",
-                referenceTaskIds: ["ref-1"]
-            )
+    func testMessage_JSONUsesSnakeCase() throws {
+        let message = Message(
+            messageId: "msg-123",
+            role: .user,
+            parts: [.text("Test")],
+            contextId: "ctx-456",
+            taskId: "task-789",
+            referenceTaskIds: ["ref-1"]
+        )
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(message)
-            let json = String(data: data, encoding: .utf8)!
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(message)
+        let json = String(data: data, encoding: .utf8)!
 
-            #expect(json.contains("message_id"))
-            #expect(json.contains("context_id"))
-            #expect(json.contains("task_id"))
-            #expect(json.contains("reference_task_ids"))
-            #expect(!json.contains("messageId"))
-            #expect(!json.contains("contextId"))
-            #expect(!json.contains("taskId"))
-        }
+        XCTAssertTrue(json.contains("message_id"))
+        XCTAssertTrue(json.contains("context_id"))
+        XCTAssertTrue(json.contains("task_id"))
+        XCTAssertTrue(json.contains("reference_task_ids"))
+        XCTAssertFalse(json.contains("messageId"))
+        XCTAssertFalse(json.contains("contextId"))
+        XCTAssertFalse(json.contains("taskId"))
+    }
 
-        @Test("Role includes unspecified")
-        func roleUnspecified() {
-            #expect(MessageRole.unspecified.rawValue == "unspecified")
-        }
+    func testMessage_RoleIncludesUnspecified() {
+        XCTAssertEqual(MessageRole.unspecified.rawValue, "unspecified")
     }
 
     // MARK: - Task Tests
 
-    @Suite("Task")
-    struct TaskTests {
-        @Test("Task state convenience properties")
-        func taskStateProperties() {
-            let task = A2ATask(
-                id: "task-123",
-                contextId: "ctx-456",
-                status: TaskStatus(state: .working)
-            )
+    func testTask_StateConvenienceProperties() {
+        let task = A2ATask(
+            id: "task-123",
+            contextId: "ctx-456",
+            status: TaskStatus(state: .working)
+        )
 
-            #expect(task.state == .working)
-            #expect(task.isComplete == false)
-            #expect(task.needsInput == false)
-        }
+        XCTAssertEqual(task.state, .working)
+        XCTAssertFalse(task.isComplete)
+        XCTAssertFalse(task.needsInput)
+    }
 
-        @Test("Completed task is marked complete")
-        func completedTask() {
-            let task = A2ATask(
-                id: "task-123",
-                contextId: "ctx-456",
-                status: TaskStatus(state: .completed)
-            )
+    func testTask_CompletedTaskIsMarkedComplete() {
+        let task = A2ATask(
+            id: "task-123",
+            contextId: "ctx-456",
+            status: TaskStatus(state: .completed)
+        )
 
-            #expect(task.isComplete == true)
-        }
+        XCTAssertTrue(task.isComplete)
+    }
 
-        @Test("Input required task needs input")
-        func inputRequiredTask() {
-            let task = A2ATask(
-                id: "task-123",
-                contextId: "ctx-456",
-                status: TaskStatus(state: .inputRequired)
-            )
+    func testTask_InputRequiredTaskNeedsInput() {
+        let task = A2ATask(
+            id: "task-123",
+            contextId: "ctx-456",
+            status: TaskStatus(state: .inputRequired)
+        )
 
-            #expect(task.needsInput == true)
-        }
+        XCTAssertTrue(task.needsInput)
+    }
 
-        @Test("Task encoding and decoding")
-        func taskCoding() throws {
-            let task = A2ATask(
-                id: "task-123",
-                contextId: "ctx-456",
-                status: TaskStatus(state: .working),
-                artifacts: [
-                    Artifact(name: "output", parts: [.text("Result")])
-                ]
-            )
+    func testTask_EncodingAndDecoding() throws {
+        let task = A2ATask(
+            id: "task-123",
+            contextId: "ctx-456",
+            status: TaskStatus(state: .working),
+            artifacts: [
+                Artifact(name: "output", parts: [.text("Result")])
+            ]
+        )
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(task)
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(task)
 
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode(A2ATask.self, from: data)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(A2ATask.self, from: data)
 
-            #expect(decoded.id == "task-123")
-            #expect(decoded.contextId == "ctx-456")
-            #expect(decoded.state == .working)
-            #expect(decoded.artifacts?.count == 1)
-        }
+        XCTAssertEqual(decoded.id, "task-123")
+        XCTAssertEqual(decoded.contextId, "ctx-456")
+        XCTAssertEqual(decoded.state, .working)
+        XCTAssertEqual(decoded.artifacts?.count, 1)
+    }
 
-        @Test("Task JSON uses snake_case")
-        func taskSnakeCase() throws {
-            let task = A2ATask(
-                id: "task-123",
-                contextId: "ctx-456",
-                status: TaskStatus(state: .working)
-            )
+    func testTask_JSONUsesSnakeCase() throws {
+        let task = A2ATask(
+            id: "task-123",
+            contextId: "ctx-456",
+            status: TaskStatus(state: .working)
+        )
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(task)
-            let json = String(data: data, encoding: .utf8)!
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(task)
+        let json = String(data: data, encoding: .utf8)!
 
-            #expect(json.contains("context_id"))
-            #expect(!json.contains("contextId"))
-        }
+        XCTAssertTrue(json.contains("context_id"))
+        XCTAssertFalse(json.contains("contextId"))
     }
 
     // MARK: - AgentCard Tests
 
-    @Suite("AgentCard")
-    struct AgentCardTests {
-        @Test("Well-known URL construction")
-        func wellKnownURL() {
-            let url = AgentCard.wellKnownURL(domain: "example.com")
-            #expect(url?.absoluteString == "https://example.com/.well-known/agent.json")
+    func testAgentCard_WellKnownURLConstruction() {
+        let url = AgentCard.wellKnownURL(domain: "example.com")
+        XCTAssertEqual(url?.absoluteString, "https://example.com/.well-known/agent.json")
+    }
+
+    func testAgentCard_EncodingAndDecoding() throws {
+        let card = AgentCard(
+            name: "Test Agent",
+            description: "A test agent",
+            supportedInterfaces: [
+                AgentInterface(url: "https://example.com/agent", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+            ],
+            version: "1.0.0",
+            capabilities: AgentCapabilities(
+                streaming: true,
+                pushNotifications: false
+            ),
+            skills: [
+                AgentSkill(
+                    id: "chat",
+                    name: "Chat",
+                    description: "General conversation",
+                    tags: ["chat", "general"]
+                )
+            ]
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(card)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(AgentCard.self, from: data)
+
+        XCTAssertEqual(decoded.name, "Test Agent")
+        XCTAssertEqual(decoded.url, "https://example.com/agent")
+        XCTAssertEqual(decoded.capabilities.streaming, true)
+        XCTAssertEqual(decoded.skills.count, 1)
+    }
+
+    func testAgentCard_JSONUsesSnakeCase() throws {
+        let card = AgentCard(
+            name: "Test",
+            description: "Test agent",
+            supportedInterfaces: [
+                AgentInterface(url: "https://example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+            ],
+            version: "1.0",
+            capabilities: AgentCapabilities(pushNotifications: true),
+            defaultInputModes: ["text/plain"],
+            defaultOutputModes: ["text/plain"],
+            skills: [AgentSkill(id: "s1", name: "Skill", description: "A skill", tags: [])]
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(card)
+        let json = String(data: data, encoding: .utf8)!
+
+        XCTAssertTrue(json.contains("supported_interfaces"))
+        XCTAssertTrue(json.contains("protocol_binding"))
+        XCTAssertTrue(json.contains("protocol_version"))
+        XCTAssertTrue(json.contains("default_input_modes"))
+        XCTAssertTrue(json.contains("default_output_modes"))
+        XCTAssertTrue(json.contains("push_notifications"))
+        XCTAssertFalse(json.contains("protocolVersion"))
+        XCTAssertFalse(json.contains("defaultInputModes"))
+    }
+
+    func testAgentCard_HasRequiredFields() {
+        let card = AgentCard(
+            name: "Test",
+            description: "Required description",
+            supportedInterfaces: [
+                AgentInterface(url: "https://example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+            ],
+            version: "1.0",
+            capabilities: AgentCapabilities(),
+            defaultInputModes: ["text/plain"],
+            defaultOutputModes: ["text/plain"],
+            skills: []
+        )
+
+        XCTAssertEqual(card.description, "Required description")
+        XCTAssertTrue(card.supportedInterfaces.count >= 1)
+        XCTAssertTrue(card.defaultInputModes.count >= 1)
+        XCTAssertTrue(card.defaultOutputModes.count >= 1)
+    }
+
+    func testAgentCard_EmptyInterfacesThrowsDecodingError() throws {
+        // JSON with empty supported_interfaces array
+        let json = """
+        {
+            "name": "Test",
+            "description": "Test agent",
+            "supported_interfaces": [],
+            "version": "1.0",
+            "default_input_modes": ["text/plain"],
+            "default_output_modes": ["text/plain"],
+            "skills": []
         }
+        """
+        let data = json.data(using: .utf8)!
 
-        @Test("Agent card encoding and decoding")
-        func agentCardCoding() throws {
-            let card = AgentCard(
-                name: "Test Agent",
-                description: "A test agent",
-                supportedInterfaces: [
-                    AgentInterface(url: "https://example.com/agent", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
-                ],
-                version: "1.0.0",
-                capabilities: AgentCapabilities(
-                    streaming: true,
-                    pushNotifications: false
-                ),
-                skills: [
-                    AgentSkill(
-                        id: "chat",
-                        name: "Chat",
-                        description: "General conversation",
-                        tags: ["chat", "general"]
-                    )
-                ]
-            )
-
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(card)
-
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode(AgentCard.self, from: data)
-
-            #expect(decoded.name == "Test Agent")
-            #expect(decoded.url == "https://example.com/agent")
-            #expect(decoded.capabilities.streaming == true)
-            #expect(decoded.skills.count == 1)
-        }
-
-        @Test("Agent card JSON uses snake_case")
-        func agentCardSnakeCase() throws {
-            let card = AgentCard(
-                name: "Test",
-                description: "Test agent",
-                supportedInterfaces: [
-                    AgentInterface(url: "https://example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
-                ],
-                version: "1.0",
-                capabilities: AgentCapabilities(pushNotifications: true),
-                defaultInputModes: ["text/plain"],
-                defaultOutputModes: ["text/plain"],
-                skills: [AgentSkill(id: "s1", name: "Skill", description: "A skill", tags: [])]
-            )
-
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(card)
-            let json = String(data: data, encoding: .utf8)!
-
-            #expect(json.contains("supported_interfaces"))
-            #expect(json.contains("protocol_binding"))
-            #expect(json.contains("protocol_version"))
-            #expect(json.contains("default_input_modes"))
-            #expect(json.contains("default_output_modes"))
-            #expect(json.contains("push_notifications"))
-            #expect(!json.contains("protocolVersion"))
-            #expect(!json.contains("defaultInputModes"))
-        }
-
-        @Test("Agent card has required fields")
-        func agentCardRequiredFields() {
-            let card = AgentCard(
-                name: "Test",
-                description: "Required description",
-                supportedInterfaces: [
-                    AgentInterface(url: "https://example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
-                ],
-                version: "1.0",
-                capabilities: AgentCapabilities(),
-                defaultInputModes: ["text/plain"],
-                defaultOutputModes: ["text/plain"],
-                skills: []
-            )
-
-            #expect(card.description == "Required description")
-            #expect(card.supportedInterfaces.count >= 1)
-            #expect(card.defaultInputModes.count >= 1)
-            #expect(card.defaultOutputModes.count >= 1)
-        }
-
-        @Test("Agent card with empty interfaces throws decoding error")
-        func emptyInterfacesThrows() throws {
-            // JSON with empty supported_interfaces array
-            let json = """
-            {
-                "name": "Test",
-                "description": "Test agent",
-                "supported_interfaces": [],
-                "version": "1.0",
-                "default_input_modes": ["text/plain"],
-                "default_output_modes": ["text/plain"],
-                "skills": []
-            }
-            """
-            let data = json.data(using: .utf8)!
-
-            let decoder = JSONDecoder()
-            #expect(throws: DecodingError.self) {
-                _ = try decoder.decode(AgentCard.self, from: data)
-            }
+        let decoder = JSONDecoder()
+        XCTAssertThrowsError(try decoder.decode(AgentCard.self, from: data)) { error in
+            XCTAssertTrue(error is DecodingError)
         }
     }
 
     // MARK: - Artifact Tests
 
-    @Suite("Artifact")
-    struct ArtifactTests {
-        @Test("Text artifact creation")
-        func textArtifact() {
-            let artifact = Artifact.text("Generated content", name: "output.txt")
+    func testArtifact_TextArtifactCreation() {
+        let artifact = Artifact.text("Generated content", name: "output.txt")
 
-            #expect(artifact.name == "output.txt")
-            #expect(artifact.textContent == "Generated content")
-        }
+        XCTAssertEqual(artifact.name, "output.txt")
+        XCTAssertEqual(artifact.textContent, "Generated content")
+    }
 
-        @Test("Data artifact creation")
-        func dataArtifact() {
-            let artifact = Artifact.data(["result": "success"], name: "response")
+    func testArtifact_DataArtifactCreation() {
+        let artifact = Artifact.data(["result": "success"], name: "response")
 
-            #expect(artifact.name == "response")
-            #expect(artifact.parts.count == 1)
-        }
+        XCTAssertEqual(artifact.name, "response")
+        XCTAssertEqual(artifact.parts.count, 1)
+    }
 
-        @Test("Artifact JSON uses snake_case")
-        func artifactSnakeCase() throws {
-            let artifact = Artifact(
-                artifactId: "art-123",
-                name: "test",
-                parts: [.text("content")]
-            )
+    func testArtifact_JSONUsesSnakeCase() throws {
+        let artifact = Artifact(
+            artifactId: "art-123",
+            name: "test",
+            parts: [.text("content")]
+        )
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(artifact)
-            let json = String(data: data, encoding: .utf8)!
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(artifact)
+        let json = String(data: data, encoding: .utf8)!
 
-            #expect(json.contains("artifact_id"))
-            #expect(!json.contains("artifactId"))
-        }
+        XCTAssertTrue(json.contains("artifact_id"))
+        XCTAssertFalse(json.contains("artifactId"))
+    }
 
-        @Test("Artifact extensions is string array")
-        func artifactExtensions() throws {
-            let artifact = Artifact(
-                parts: [.text("test")],
-                extensions: ["urn:a2a:ext:example", "urn:a2a:ext:other"]
-            )
+    func testArtifact_ExtensionsIsStringArray() throws {
+        let artifact = Artifact(
+            parts: [.text("test")],
+            extensions: ["urn:a2a:ext:example", "urn:a2a:ext:other"]
+        )
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(artifact)
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(artifact)
 
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode(Artifact.self, from: data)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Artifact.self, from: data)
 
-            #expect(decoded.extensions?.count == 2)
-            #expect(decoded.extensions?.first == "urn:a2a:ext:example")
-        }
+        XCTAssertEqual(decoded.extensions?.count, 2)
+        XCTAssertEqual(decoded.extensions?.first, "urn:a2a:ext:example")
     }
 
     // MARK: - AnyCodable Tests
 
-    @Suite("AnyCodable")
-    struct AnyCodableTests {
-        @Test("String value")
-        func stringValue() {
-            let value: AnyCodable = "test"
-            #expect(value.stringValue == "test")
-        }
+    func testAnyCodable_StringValue() {
+        let value: AnyCodable = "test"
+        XCTAssertEqual(value.stringValue, "test")
+    }
 
-        @Test("Integer value")
-        func intValue() {
-            let value: AnyCodable = 42
-            #expect(value.intValue == 42)
-        }
+    func testAnyCodable_IntegerValue() {
+        let value: AnyCodable = 42
+        XCTAssertEqual(value.intValue, 42)
+    }
 
-        @Test("Boolean value")
-        func boolValue() {
-            let value: AnyCodable = true
-            #expect(value.boolValue == true)
-        }
+    func testAnyCodable_BooleanValue() {
+        let value: AnyCodable = true
+        XCTAssertEqual(value.boolValue, true)
+    }
 
-        @Test("Null value")
-        func nullValue() {
-            let value: AnyCodable = nil
-            #expect(value.isNull == true)
-        }
+    func testAnyCodable_NullValue() {
+        let value: AnyCodable = nil
+        XCTAssertTrue(value.isNull)
+    }
 
-        @Test("Dictionary encoding and decoding")
-        func dictionaryCoding() throws {
-            let original: [String: AnyCodable] = [
-                "string": "value",
-                "number": 123,
-                "bool": true
-            ]
+    func testAnyCodable_DictionaryEncodingAndDecoding() throws {
+        let original: [String: AnyCodable] = [
+            "string": "value",
+            "number": 123,
+            "bool": true
+        ]
 
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(original)
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(original)
 
-            let decoder = JSONDecoder()
-            let decoded = try decoder.decode([String: AnyCodable].self, from: data)
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode([String: AnyCodable].self, from: data)
 
-            #expect(decoded["string"]?.stringValue == "value")
-            #expect(decoded["number"]?.intValue == 123)
-            #expect(decoded["bool"]?.boolValue == true)
-        }
+        XCTAssertEqual(decoded["string"]?.stringValue, "value")
+        XCTAssertEqual(decoded["number"]?.intValue, 123)
+        XCTAssertEqual(decoded["bool"]?.boolValue, true)
     }
 }

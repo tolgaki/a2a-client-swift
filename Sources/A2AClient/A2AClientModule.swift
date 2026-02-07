@@ -14,8 +14,8 @@ import Foundation
 public typealias Client = A2AClient
 public typealias ClientConfiguration = A2AClientConfiguration
 
-// Models
-public typealias Task = A2ATask
+// Note: A2ATask is used directly instead of a Task typealias
+// to avoid shadowing Swift.Task from the concurrency module.
 
 // Re-exports are handled by Swift's module system - all public types
 // in the module are automatically exported.
@@ -80,6 +80,9 @@ public enum A2A {
 
 /// Sends a message to an agent at the given URL.
 ///
+/// - Note: This creates a new `A2AClient` (and `URLSession`) per call.
+///   For repeated calls, create and reuse a single `A2AClient` instance instead.
+///
 /// - Parameters:
 ///   - message: The message to send.
 ///   - url: The agent's URL.
@@ -90,6 +93,9 @@ public func sendMessage(_ message: Message, to url: URL) async throws -> SendMes
 }
 
 /// Sends a text message to an agent at the given URL.
+///
+/// - Note: This creates a new `A2AClient` (and `URLSession`) per call.
+///   For repeated calls, create and reuse a single `A2AClient` instance instead.
 ///
 /// - Parameters:
 ///   - text: The text to send.

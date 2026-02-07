@@ -25,11 +25,15 @@ public final class A2AClient: Sendable {
     /// Creates a new A2A client with the given configuration.
     public init(configuration: A2AClientConfiguration) {
         self.configuration = configuration
-        self.session = URLSession(configuration: configuration.sessionConfiguration)
+
+        let sessionConfig = configuration.sessionConfiguration
+        sessionConfig.timeoutIntervalForRequest = configuration.timeoutInterval
+        self.session = URLSession(configuration: sessionConfig)
 
         let serviceParameters = A2AServiceParameters(
             version: configuration.protocolVersion,
-            extensions: configuration.extensions
+            extensions: configuration.extensions,
+            tenant: configuration.tenant
         )
 
         switch configuration.transportBinding {
@@ -129,10 +133,12 @@ public final class A2AClient: Sendable {
     /// The agent may respond with either a Task (for long-running operations)
     /// or a Message (for immediate responses).
     ///
-    /// - Parameter message: The message to send.
+    /// - Parameters:
+    ///   - message: The message to send.
+    ///   - configuration: Optional configuration for accepted output modes, blocking, history length, etc.
     /// - Returns: The response, which is either a Task or Message.
-    public func sendMessage(_ message: Message) async throws -> SendMessageResponse {
-        let request = SendMessageRequest(message: message)
+    public func sendMessage(_ message: Message, configuration: MessageSendConfiguration? = nil) async throws -> SendMessageResponse {
+        let request = SendMessageRequest(message: message, configuration: configuration)
         return try await transport.send(
             request: request,
             to: .sendMessage,
@@ -146,14 +152,16 @@ public final class A2AClient: Sendable {
     ///   - text: The text content to send.
     ///   - contextId: Optional context ID for multi-turn conversations.
     ///   - taskId: Optional task ID to continue an existing task.
+    ///   - configuration: Optional configuration for accepted output modes, blocking, history length, etc.
     /// - Returns: The response, which is either a Task or Message.
     public func sendMessage(
         _ text: String,
         contextId: String? = nil,
-        taskId: String? = nil
+        taskId: String? = nil,
+        configuration: MessageSendConfiguration? = nil
     ) async throws -> SendMessageResponse {
         let message = Message.user(text, contextId: contextId, taskId: taskId)
-        return try await sendMessage(message)
+        return try await sendMessage(message, configuration: configuration)
     }
 
     /// Sends a streaming message to the agent.
@@ -161,10 +169,12 @@ public final class A2AClient: Sendable {
     /// Returns an async sequence of streaming events that can be iterated
     /// to receive real-time updates.
     ///
-    /// - Parameter message: The message to send.
+    /// - Parameters:
+    ///   - message: The message to send.
+    ///   - configuration: Optional configuration for accepted output modes, history length, etc.
     /// - Returns: An async sequence of streaming events.
-    public func sendStreamingMessage(_ message: Message) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
-        let request = SendMessageRequest(message: message)
+    public func sendStreamingMessage(_ message: Message, configuration: MessageSendConfiguration? = nil) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
+        let request = SendMessageRequest(message: message, configuration: configuration)
         return try await transport.stream(request: request, to: .sendStreamingMessage)
     }
 
@@ -174,27 +184,34 @@ public final class A2AClient: Sendable {
     ///   - text: The text content to send.
     ///   - contextId: Optional context ID for multi-turn conversations.
     ///   - taskId: Optional task ID to continue an existing task.
+    ///   - configuration: Optional configuration for accepted output modes, history length, etc.
     /// - Returns: An async sequence of streaming events.
     public func sendStreamingMessage(
         _ text: String,
         contextId: String? = nil,
-        taskId: String? = nil
+        taskId: String? = nil,
+        configuration: MessageSendConfiguration? = nil
     ) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
         let message = Message.user(text, contextId: contextId, taskId: taskId)
-        return try await sendStreamingMessage(message)
+        return try await sendStreamingMessage(message, configuration: configuration)
     }
 
     // MARK: - Task Management
 
     /// Gets a task by its ID.
     ///
-    /// - Parameter taskId: The task ID.
+    /// - Parameters:
+    ///   - taskId: The task ID.
+    ///   - historyLength: Optional maximum number of messages to include in history.
     /// - Returns: The task.
-    public func getTask(_ taskId: String) async throws -> A2ATask {
-        let request = TaskIdParams(id: taskId)
-        return try await transport.send(
-            request: request,
-            to: .getTask(id: taskId),
+    public func getTask(_ taskId: String, historyLength: Int? = nil) async throws -> A2ATask {
+        var queryItems: [URLQueryItem] = []
+        if let historyLength = historyLength {
+            queryItems.append(URLQueryItem(name: "history_length", value: String(historyLength)))
+        }
+        return try await transport.get(
+            from: .getTask(id: taskId),
+            queryItems: queryItems,
             responseType: A2ATask.self
         )
     }
@@ -204,9 +221,32 @@ public final class A2AClient: Sendable {
     /// - Parameter params: Query parameters for filtering and pagination.
     /// - Returns: The list of tasks with pagination info.
     public func listTasks(_ params: TaskQueryParams = TaskQueryParams()) async throws -> TaskListResponse {
-        return try await transport.send(
-            request: params,
-            to: .listTasks,
+        var queryItems: [URLQueryItem] = []
+        if let contextId = params.contextId {
+            queryItems.append(URLQueryItem(name: "context_id", value: contextId))
+        }
+        if let status = params.status {
+            queryItems.append(URLQueryItem(name: "status", value: status.rawValue))
+        }
+        if let pageSize = params.pageSize {
+            queryItems.append(URLQueryItem(name: "page_size", value: String(pageSize)))
+        }
+        if let pageToken = params.pageToken {
+            queryItems.append(URLQueryItem(name: "page_token", value: pageToken))
+        }
+        if let historyLength = params.historyLength {
+            queryItems.append(URLQueryItem(name: "history_length", value: String(historyLength)))
+        }
+        if let statusTimestampAfter = params.statusTimestampAfter {
+            let formatter = ISO8601DateFormatter()
+            queryItems.append(URLQueryItem(name: "status_timestamp_after", value: formatter.string(from: statusTimestampAfter)))
+        }
+        if let includeArtifacts = params.includeArtifacts {
+            queryItems.append(URLQueryItem(name: "include_artifacts", value: String(includeArtifacts)))
+        }
+        return try await transport.get(
+            from: .listTasks,
+            queryItems: queryItems,
             responseType: TaskListResponse.self
         )
     }
@@ -275,10 +315,9 @@ public final class A2AClient: Sendable {
         taskId: String,
         configId: String
     ) async throws -> TaskPushNotificationConfig {
-        let request = GetPushNotificationConfigParams(taskId: taskId, id: configId)
-        return try await transport.send(
-            request: request,
-            to: .getPushNotificationConfig(taskId: taskId, configId: configId),
+        return try await transport.get(
+            from: .getPushNotificationConfig(taskId: taskId, configId: configId),
+            queryItems: [],
             responseType: TaskPushNotificationConfig.self
         )
     }
@@ -288,10 +327,9 @@ public final class A2AClient: Sendable {
     /// - Parameter taskId: The task ID.
     /// - Returns: The list of configurations.
     public func listPushNotificationConfigs(taskId: String) async throws -> [TaskPushNotificationConfig] {
-        let request = ListPushNotificationConfigsParams(taskId: taskId)
-        let response = try await transport.send(
-            request: request,
-            to: .listPushNotificationConfigs(taskId: taskId),
+        let response = try await transport.get(
+            from: .listPushNotificationConfigs(taskId: taskId),
+            queryItems: [],
             responseType: ListPushNotificationConfigsResponse.self
         )
         return response.configs ?? []
@@ -330,17 +368,9 @@ public final class A2AClient: Sendable {
     ///
     /// - Returns: The extended agent card.
     public func getExtendedAgentCard() async throws -> AgentCard {
-        // Construct URL properly without double slashes
-        guard var components = URLComponents(url: configuration.baseURL, resolvingAgainstBaseURL: true) else {
-            throw A2AError.invalidRequest(message: "Invalid base URL")
-        }
-        let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        components.path = basePath.isEmpty ? "/extendedAgentCard" : "/\(basePath)/extendedAgentCard"
-        guard let url = components.url else {
-            throw A2AError.invalidRequest(message: "Could not construct extended agent card URL")
-        }
-        return try await transport.fetch(
-            from: url,
+        return try await transport.get(
+            from: .getExtendedAgentCard,
+            queryItems: [],
             responseType: AgentCard.self
         )
     }
@@ -353,8 +383,12 @@ public struct SendMessageRequest: Codable, Sendable {
     /// The message to send.
     public let message: Message
 
-    public init(message: Message) {
+    /// Optional configuration for the send operation.
+    public let configuration: MessageSendConfiguration?
+
+    public init(message: Message, configuration: MessageSendConfiguration? = nil) {
         self.message = message
+        self.configuration = configuration
     }
 }
 
@@ -375,20 +409,29 @@ public enum SendMessageResponse: Codable, Sendable {
         case message
     }
 
+    private enum DiscriminatorKeys: String, CodingKey {
+        case status  // Present in A2ATask but not Message
+        case role    // Present in Message but not A2ATask
+    }
+
     public init(from decoder: Decoder) throws {
-        // Try to decode as a Task first
-        if let task = try? A2ATask(from: decoder) {
+        // Use discriminating fields to determine the type.
+        // A2ATask has a required "status" field; Message has a required "role" field.
+        let discriminator = try decoder.container(keyedBy: DiscriminatorKeys.self)
+
+        if discriminator.contains(.status) {
+            let task = try A2ATask(from: decoder)
             self = .task(task)
             return
         }
 
-        // Try to decode as a Message
-        if let message = try? Message(from: decoder) {
+        if discriminator.contains(.role) {
+            let message = try Message(from: decoder)
             self = .message(message)
             return
         }
 
-        // Try to decode with explicit type field
+        // Fallback: try wrapped format with explicit type field
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if container.contains(.task) {
             let task = try container.decode(A2ATask.self, forKey: .task)
@@ -400,7 +443,7 @@ public enum SendMessageResponse: Codable, Sendable {
             throw DecodingError.dataCorruptedError(
                 forKey: .type,
                 in: container,
-                debugDescription: "Unable to decode SendMessageResponse"
+                debugDescription: "Unable to decode SendMessageResponse: missing 'status' (Task) or 'role' (Message) field"
             )
         }
     }

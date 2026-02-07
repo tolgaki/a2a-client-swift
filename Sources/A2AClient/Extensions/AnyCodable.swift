@@ -9,6 +9,14 @@ import Foundation
 ///
 /// This is used for metadata, extensions, and other dynamic data structures
 /// in the A2A protocol where the schema is not fixed.
+///
+/// - Important: `@unchecked Sendable` is safe here because `AnyCodable` only stores
+///   JSON-compatible primitive values (`Bool`, `Int`, `Double`, `String`, `NSNull`),
+///   arrays of such values, or dictionaries with `String` keys and such values.
+///   All of these types are value types (or immutable reference types like `NSNull`)
+///   and are inherently safe to share across concurrency domains.
+///   Callers should only store JSON-compatible values — passing non-Sendable
+///   reference types will result in encoding errors at runtime.
 public struct AnyCodable: Codable, @unchecked Sendable, Equatable {
     /// The underlying value.
     public let value: Any

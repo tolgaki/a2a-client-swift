@@ -3,173 +3,148 @@
 //
 // Tests for A2A client configuration
 
-import Testing
+import XCTest
 import Foundation
 @testable import A2AClient
 
-@Suite("Client Configuration Tests")
-struct ClientConfigurationTests {
+final class ClientConfigurationTests: XCTestCase {
 
     // MARK: - Basic Configuration
 
-    @Suite("Basic Configuration")
-    struct BasicTests {
-        @Test("Default configuration values")
-        func defaultConfig() {
-            let config = A2AClientConfiguration(
-                baseURL: URL(string: "https://example.com")!
-            )
+    func testBasicConfig_DefaultConfigurationValues() {
+        let config = A2AClientConfiguration(
+            baseURL: URL(string: "https://example.com")!
+        )
 
-            #expect(config.transportBinding == .httpREST)
-            #expect(config.protocolVersion == "1.0")
-            #expect(config.timeoutInterval == 60)
-            #expect(config.extensions == nil)
-            #expect(config.authenticationProvider == nil)
-        }
+        XCTAssertEqual(config.transportBinding, .httpREST)
+        XCTAssertEqual(config.protocolVersion, "1.0")
+        XCTAssertEqual(config.timeoutInterval, 60)
+        XCTAssertNil(config.extensions)
+        XCTAssertNil(config.authenticationProvider)
+    }
 
-        @Test("Custom configuration values")
-        func customConfig() {
-            let config = A2AClientConfiguration(
-                baseURL: URL(string: "https://example.com")!,
-                transportBinding: .jsonRPC,
-                protocolVersion: "1.1",
-                extensions: ["https://example.com/ext/v1"],
-                timeoutInterval: 120
-            )
+    func testBasicConfig_CustomConfigurationValues() {
+        let config = A2AClientConfiguration(
+            baseURL: URL(string: "https://example.com")!,
+            transportBinding: .jsonRPC,
+            protocolVersion: "1.1",
+            extensions: ["https://example.com/ext/v1"],
+            timeoutInterval: 120
+        )
 
-            #expect(config.transportBinding == .jsonRPC)
-            #expect(config.protocolVersion == "1.1")
-            #expect(config.extensions?.first == "https://example.com/ext/v1")
-            #expect(config.timeoutInterval == 120)
-        }
+        XCTAssertEqual(config.transportBinding, .jsonRPC)
+        XCTAssertEqual(config.protocolVersion, "1.1")
+        XCTAssertEqual(config.extensions?.first, "https://example.com/ext/v1")
+        XCTAssertEqual(config.timeoutInterval, 120)
     }
 
     // MARK: - Builder Pattern
 
-    @Suite("Builder Pattern")
-    struct BuilderTests {
-        @Test("With different base URL")
-        func withBaseURL() {
-            let original = A2AClientConfiguration(
-                baseURL: URL(string: "https://example.com")!
-            )
+    func testBuilder_WithDifferentBaseURL() {
+        let original = A2AClientConfiguration(
+            baseURL: URL(string: "https://example.com")!
+        )
 
-            let modified = original.with(baseURL: URL(string: "https://other.com")!)
+        let modified = original.with(baseURL: URL(string: "https://other.com")!)
 
-            #expect(modified.baseURL.absoluteString == "https://other.com")
-            #expect(modified.transportBinding == original.transportBinding)
-        }
+        XCTAssertEqual(modified.baseURL.absoluteString, "https://other.com")
+        XCTAssertEqual(modified.transportBinding, original.transportBinding)
+    }
 
-        @Test("With different transport binding")
-        func withTransportBinding() {
-            let original = A2AClientConfiguration(
-                baseURL: URL(string: "https://example.com")!
-            )
+    func testBuilder_WithDifferentTransportBinding() {
+        let original = A2AClientConfiguration(
+            baseURL: URL(string: "https://example.com")!
+        )
 
-            let modified = original.with(transportBinding: .jsonRPC)
+        let modified = original.with(transportBinding: .jsonRPC)
 
-            #expect(modified.transportBinding == .jsonRPC)
-            #expect(modified.baseURL == original.baseURL)
-        }
+        XCTAssertEqual(modified.transportBinding, .jsonRPC)
+        XCTAssertEqual(modified.baseURL, original.baseURL)
+    }
 
-        @Test("With API key authentication")
-        func withAPIKey() {
-            let config = A2AClientConfiguration(
-                baseURL: URL(string: "https://example.com")!
-            ).withAPIKey("my-api-key")
+    func testBuilder_WithAPIKeyAuthentication() {
+        let config = A2AClientConfiguration(
+            baseURL: URL(string: "https://example.com")!
+        ).withAPIKey("my-api-key")
 
-            #expect(config.authenticationProvider != nil)
-        }
+        XCTAssertNotNil(config.authenticationProvider)
+    }
 
-        @Test("With bearer token authentication")
-        func withBearerToken() {
-            let config = A2AClientConfiguration(
-                baseURL: URL(string: "https://example.com")!
-            ).withBearerToken("my-token")
+    func testBuilder_WithBearerTokenAuthentication() {
+        let config = A2AClientConfiguration(
+            baseURL: URL(string: "https://example.com")!
+        ).withBearerToken("my-token")
 
-            #expect(config.authenticationProvider != nil)
-        }
+        XCTAssertNotNil(config.authenticationProvider)
+    }
 
-        @Test("With basic authentication")
-        func withBasicAuth() {
-            let config = A2AClientConfiguration(
-                baseURL: URL(string: "https://example.com")!
-            ).withBasicAuth(username: "user", password: "pass")
+    func testBuilder_WithBasicAuthentication() {
+        let config = A2AClientConfiguration(
+            baseURL: URL(string: "https://example.com")!
+        ).withBasicAuth(username: "user", password: "pass")
 
-            #expect(config.authenticationProvider != nil)
-        }
+        XCTAssertNotNil(config.authenticationProvider)
     }
 
     // MARK: - From Agent Card
 
-    @Suite("From Agent Card")
-    struct FromAgentCardTests {
-        @Test("Configuration from agent card")
-        func fromAgentCard() throws {
-            let card = AgentCard(
-                name: "Test Agent",
-                description: "A test agent",
-                supportedInterfaces: [
-                    AgentInterface(url: "https://agent.example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
-                ],
-                version: "1.0.0"
-            )
+    func testFromAgentCard_ConfigurationFromAgentCard() throws {
+        let card = AgentCard(
+            name: "Test Agent",
+            description: "A test agent",
+            supportedInterfaces: [
+                AgentInterface(url: "https://agent.example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+            ],
+            version: "1.0.0"
+        )
 
-            let config = try A2AClientConfiguration.from(agentCard: card)
+        let config = try A2AClientConfiguration.from(agentCard: card)
 
-            #expect(config.baseURL.absoluteString == "https://agent.example.com")
-            #expect(config.protocolVersion == "1.0")
-        }
+        XCTAssertEqual(config.baseURL.absoluteString, "https://agent.example.com")
+        XCTAssertEqual(config.protocolVersion, "1.0")
+    }
 
-        @Test("Configuration from agent card with auth")
-        func fromAgentCardWithAuth() throws {
-            let card = AgentCard(
-                name: "Test Agent",
-                description: "A test agent",
-                supportedInterfaces: [
-                    AgentInterface(url: "https://agent.example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
-                ],
-                version: "1.0.0"
-            )
+    func testFromAgentCard_ConfigurationFromAgentCardWithAuth() throws {
+        let card = AgentCard(
+            name: "Test Agent",
+            description: "A test agent",
+            supportedInterfaces: [
+                AgentInterface(url: "https://agent.example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")
+            ],
+            version: "1.0.0"
+        )
 
-            let auth = BearerAuthentication(token: "test-token")
-            let config = try A2AClientConfiguration.from(
-                agentCard: card,
-                authenticationProvider: auth
-            )
+        let auth = BearerAuthentication(token: "test-token")
+        let config = try A2AClientConfiguration.from(
+            agentCard: card,
+            authenticationProvider: auth
+        )
 
-            #expect(config.authenticationProvider != nil)
-        }
+        XCTAssertNotNil(config.authenticationProvider)
+    }
 
-        @Test("Invalid URL throws error")
-        func invalidURLThrows() {
-            let card = AgentCard(
-                name: "Test Agent",
-                description: "A test agent",
-                supportedInterfaces: [
-                    AgentInterface(url: "", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")  // Invalid URL
-                ],
-                version: "1.0.0"
-            )
+    func testFromAgentCard_InvalidURLThrowsError() {
+        let card = AgentCard(
+            name: "Test Agent",
+            description: "A test agent",
+            supportedInterfaces: [
+                AgentInterface(url: "", protocolBinding: "HTTP+JSON", protocolVersion: "1.0")  // Invalid URL
+            ],
+            version: "1.0.0"
+        )
 
-            #expect(throws: A2AError.self) {
-                _ = try A2AClientConfiguration.from(agentCard: card)
-            }
+        XCTAssertThrowsError(try A2AClientConfiguration.from(agentCard: card)) { error in
+            XCTAssertTrue(error is A2AError)
         }
     }
 
     // MARK: - Transport Binding
 
-    @Suite("Transport Binding")
-    struct TransportBindingTests {
-        @Test("HTTP REST raw value")
-        func httpRESTRawValue() {
-            #expect(TransportBinding.httpREST.rawValue == "HTTP+JSON")
-        }
+    func testTransportBinding_HTTPRESTRawValue() {
+        XCTAssertEqual(TransportBinding.httpREST.rawValue, "HTTP+JSON")
+    }
 
-        @Test("JSON-RPC raw value")
-        func jsonRPCRawValue() {
-            #expect(TransportBinding.jsonRPC.rawValue == "JSONRPC")
-        }
+    func testTransportBinding_JSONRPCRawValue() {
+        XCTAssertEqual(TransportBinding.jsonRPC.rawValue, "JSONRPC")
     }
 }

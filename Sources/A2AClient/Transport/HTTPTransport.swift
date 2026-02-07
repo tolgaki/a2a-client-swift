@@ -9,11 +9,13 @@ import Foundation
 ///
 /// This transport uses standard HTTP methods and URL patterns as defined
 /// in the A2A HTTP/REST binding specification.
-public final class HTTPTransport: A2ATransport, @unchecked Sendable {
+///
+/// - Note: This type is `Sendable` because all stored properties are immutable after init.
+///   `JSONEncoder`/`JSONDecoder` are created per-call via `makeEncoder()`/`makeDecoder()`
+///   to avoid thread-safety concerns with shared mutable reference types.
+public final class HTTPTransport: A2ATransport, Sendable {
     private let baseURL: URL
     private let session: URLSession
-    private let encoder: JSONEncoder
-    private let decoder: JSONDecoder
     private let serviceParameters: A2AServiceParameters
     private let authenticationProvider: AuthenticationProvider?
 
@@ -27,12 +29,18 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
         self.session = session
         self.serviceParameters = serviceParameters
         self.authenticationProvider = authenticationProvider
+    }
 
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
+    private func makeEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
 
-        self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
+    private func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 
     // MARK: - A2ATransport Implementation
@@ -48,7 +56,7 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
         try validateResponse(response, data: data)
 
         do {
-            return try decoder.decode(Response.self, from: data)
+            return try makeDecoder().decode(Response.self, from: data)
         } catch {
             throw A2AError.encodingError(underlying: error)
         }
@@ -80,9 +88,8 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
 
                     for try await line in bytes.lines {
                         if let event = parser.parse(line: line) {
-                            if let streamingEvent = try? decodeStreamingEvent(from: event) {
-                                continuation.yield(streamingEvent)
-                            }
+                            let streamingEvent = try decodeStreamingEvent(from: event)
+                            continuation.yield(streamingEvent)
                         }
                     }
 
@@ -95,6 +102,49 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
             continuation.onTermination = { _ in
                 streamTask.cancel()
             }
+        }
+    }
+
+    public func get<Response: Decodable>(
+        from endpoint: A2AEndpoint,
+        queryItems: [URLQueryItem],
+        responseType: Response.Type
+    ) async throws -> Response {
+        let path = endpoint.pathWithTenant(serviceParameters.tenant)
+        let url = baseURL.appendingPathComponent(path)
+
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
+            throw A2AError.invalidRequest(message: "Invalid URL for endpoint: \(path)")
+        }
+
+        let nonNilItems = queryItems.filter { $0.value != nil }
+        if !nonNilItems.isEmpty {
+            components.queryItems = nonNilItems
+        }
+
+        guard let finalURL = components.url else {
+            throw A2AError.invalidRequest(message: "Could not construct URL with query parameters")
+        }
+
+        var request = URLRequest(url: finalURL)
+        request.httpMethod = HTTPMethod.get.rawValue
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        for (key, value) in serviceParameters.headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        if let auth = authenticationProvider {
+            request = try await auth.authenticate(request: request)
+        }
+
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response, data: data)
+
+        do {
+            return try makeDecoder().decode(Response.self, from: data)
+        } catch {
+            throw A2AError.encodingError(underlying: error)
         }
     }
 
@@ -114,7 +164,7 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
         try validateResponse(response, data: data)
 
         do {
-            return try decoder.decode(Response.self, from: data)
+            return try makeDecoder().decode(Response.self, from: data)
         } catch {
             throw A2AError.encodingError(underlying: error)
         }
@@ -127,12 +177,12 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
         body: Body? = nil as Empty?,
         acceptSSE: Bool = false
     ) async throws -> URLRequest {
-        let url = baseURL.appendingPathComponent(endpoint.path)
+        let path = endpoint.pathWithTenant(serviceParameters.tenant)
+        let url = baseURL.appendingPathComponent(path)
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.method.rawValue
 
-        // Set content type and accept headers
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Set accept headers
         if acceptSSE {
             request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         } else {
@@ -144,10 +194,11 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
             request.setValue(value, forHTTPHeaderField: key)
         }
 
-        // Encode body if present
-        if let body = body {
+        // Encode body for non-GET requests
+        if let body = body, endpoint.method != .get {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             do {
-                request.httpBody = try encoder.encode(body)
+                request.httpBody = try makeEncoder().encode(body)
             } catch {
                 throw A2AError.encodingError(underlying: error)
             }
@@ -175,7 +226,7 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
             throw A2AError.authorizationFailed(message: "Access denied")
         case 404:
             // Try to parse error response for more details
-            if let data = data, let errorResponse = try? decoder.decode(A2AErrorResponse.self, from: data) {
+            if let data = data, let errorResponse = try? makeDecoder().decode(A2AErrorResponse.self, from: data) {
                 throw errorResponse.toA2AError()
             }
             // Generic 404 - could be any resource, not just a task
@@ -186,17 +237,17 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
                 message: "Unsupported media type"
             )
         case 400:
-            if let data = data, let errorResponse = try? decoder.decode(A2AErrorResponse.self, from: data) {
+            if let data = data, let errorResponse = try? makeDecoder().decode(A2AErrorResponse.self, from: data) {
                 throw errorResponse.toA2AError()
             }
             throw A2AError.invalidRequest(message: "Bad request (HTTP 400)")
         case 500...599:
-            if let data = data, let errorResponse = try? decoder.decode(A2AErrorResponse.self, from: data) {
+            if let data = data, let errorResponse = try? makeDecoder().decode(A2AErrorResponse.self, from: data) {
                 throw errorResponse.toA2AError()
             }
             throw A2AError.internalError(message: "Server error (HTTP \(httpResponse.statusCode))")
         default:
-            if let data = data, let errorResponse = try? decoder.decode(A2AErrorResponse.self, from: data) {
+            if let data = data, let errorResponse = try? makeDecoder().decode(A2AErrorResponse.self, from: data) {
                 throw errorResponse.toA2AError()
             }
             throw A2AError.internalError(message: "HTTP \(httpResponse.statusCode)")
@@ -207,6 +258,8 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
         guard let data = sseEvent.data.data(using: .utf8) else {
             throw A2AError.invalidResponse(message: "Invalid SSE data encoding")
         }
+
+        let decoder = makeDecoder()
 
         // Try to decode as different event types based on event type
         switch sseEvent.event {
@@ -234,10 +287,6 @@ public final class HTTPTransport: A2ATransport, @unchecked Sendable {
             } else if let message = try? decoder.decode(Message.self, from: data) {
                 return .message(message)
             }
-            // Log unknown event type for debugging
-            #if DEBUG
-            print("[A2AClient] Warning: Unknown SSE event type '\(sseEvent.event ?? "none")' - could not decode as any known type")
-            #endif
             throw A2AError.invalidResponse(message: "Unknown or malformed event type: \(sseEvent.event ?? "none")")
         }
     }
@@ -289,17 +338,25 @@ final class SSEParser {
             return event
         }
 
-        // Parse field
+        // Parse field — per the SSE spec, only strip a single leading space after the colon
         if line.hasPrefix("event:") {
-            currentEvent = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+            currentEvent = Self.stripSingleLeadingSpace(String(line.dropFirst(6)))
         } else if line.hasPrefix("data:") {
-            currentData.append(String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces))
+            currentData.append(Self.stripSingleLeadingSpace(String(line.dropFirst(5))))
         } else if line.hasPrefix("id:") {
-            currentId = String(line.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+            currentId = Self.stripSingleLeadingSpace(String(line.dropFirst(3)))
         }
         // Ignore retry: and comments (lines starting with :)
 
         return nil
+    }
+
+    /// Strips a single leading U+0020 SPACE character per the SSE spec.
+    private static func stripSingleLeadingSpace(_ value: String) -> String {
+        if value.hasPrefix(" ") {
+            return String(value.dropFirst())
+        }
+        return value
     }
 
     /// Resets the parser state.

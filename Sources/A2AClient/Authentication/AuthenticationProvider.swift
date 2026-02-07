@@ -83,7 +83,8 @@ public struct APIKeyAuthentication: AuthenticationProvider {
             }
 
         case .cookie:
-            let cookieValue = "\(name)=\(key)"
+            let encodedKey = key.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? key
+            let cookieValue = "\(name)=\(encodedKey)"
             if let existing = request.value(forHTTPHeaderField: "Cookie") {
                 request.setValue("\(existing); \(cookieValue)", forHTTPHeaderField: "Cookie")
             } else {
@@ -256,7 +257,8 @@ public actor OAuth2Authentication: AuthenticationProvider {
         // URLComponents.percentEncodedQuery properly encodes the values
         request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
 
-        let (data, _) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request)
+        try validateTokenResponse(response)
         try parseTokenResponse(data)
     }
 
@@ -283,8 +285,18 @@ public actor OAuth2Authentication: AuthenticationProvider {
         // URLComponents.percentEncodedQuery properly encodes the values
         request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
 
-        let (data, _) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request)
+        try validateTokenResponse(response)
         try parseTokenResponse(data)
+    }
+
+    private func validateTokenResponse(_ response: URLResponse) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw A2AError.authenticationRequired(message: "Invalid token response type")
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw A2AError.authenticationRequired(message: "Token request failed with HTTP \(httpResponse.statusCode)")
+        }
     }
 
     private func parseTokenResponse(_ data: Data) throws {

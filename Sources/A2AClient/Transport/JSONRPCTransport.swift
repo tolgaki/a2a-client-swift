@@ -9,11 +9,14 @@ import Foundation
 ///
 /// This transport wraps requests in JSON-RPC 2.0 format and handles
 /// the corresponding response unwrapping.
-public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
+///
+/// - Note: This type is `Sendable` because all stored properties are immutable after init.
+///   `JSONEncoder`/`JSONDecoder` are created per-call via `makeEncoder()`/`makeDecoder()`
+///   to avoid thread-safety concerns with shared mutable reference types.
+///   `AtomicCounter` uses internal locking for thread safety.
+public final class JSONRPCTransport: A2ATransport, Sendable {
     private let baseURL: URL
     private let session: URLSession
-    private let encoder: JSONEncoder
-    private let decoder: JSONDecoder
     private let serviceParameters: A2AServiceParameters
     private let authenticationProvider: AuthenticationProvider?
 
@@ -30,12 +33,18 @@ public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
         self.session = session
         self.serviceParameters = serviceParameters
         self.authenticationProvider = authenticationProvider
+    }
 
-        self.encoder = JSONEncoder()
-        self.encoder.dateEncodingStrategy = .iso8601
+    private func makeEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
 
-        self.decoder = JSONDecoder()
-        self.decoder.dateDecodingStrategy = .iso8601
+    private func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 
     // MARK: - A2ATransport Implementation
@@ -57,7 +66,7 @@ public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
 
         try validateHTTPResponse(response)
 
-        let rpcResponse = try decoder.decode(JSONRPCResponse<Response>.self, from: data)
+        let rpcResponse = try makeDecoder().decode(JSONRPCResponse<Response>.self, from: data)
 
         if let error = rpcResponse.error {
             throw error.toA2AError()
@@ -87,7 +96,7 @@ public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
         try validateHTTPResponse(response)
 
         // Check for errors even without expecting a result
-        if let rpcResponse = try? decoder.decode(JSONRPCResponse<AnyCodable>.self, from: data),
+        if let rpcResponse = try? makeDecoder().decode(JSONRPCResponse<AnyCodable>.self, from: data),
            let error = rpcResponse.error {
             throw error.toA2AError()
         }
@@ -116,9 +125,8 @@ public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
 
                     for try await line in bytes.lines {
                         if let event = parser.parse(line: line) {
-                            if let streamingEvent = try? decodeStreamingEvent(from: event) {
-                                continuation.yield(streamingEvent)
-                            }
+                            let streamingEvent = try decodeStreamingEvent(from: event)
+                            continuation.yield(streamingEvent)
                         }
                     }
 
@@ -132,6 +140,45 @@ public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
                 streamTask.cancel()
             }
         }
+    }
+
+    public func get<Response: Decodable>(
+        from endpoint: A2AEndpoint,
+        queryItems: [URLQueryItem],
+        responseType: Response.Type
+    ) async throws -> Response {
+        // JSON-RPC wraps all requests as POST with method names.
+        // Convert query items into a params dictionary for the RPC call.
+        var params: [String: AnyCodable] = [:]
+        for item in queryItems {
+            if let value = item.value {
+                params[item.name] = AnyCodable(value)
+            }
+        }
+
+        let method = jsonRPCMethod(for: endpoint)
+        let rpcRequest = JSONRPCRequest(
+            id: requestIdCounter.next(),
+            method: method,
+            params: params
+        )
+
+        let urlRequest = try await buildRequest(body: rpcRequest)
+        let (data, response) = try await session.data(for: urlRequest)
+
+        try validateHTTPResponse(response)
+
+        let rpcResponse = try makeDecoder().decode(JSONRPCResponse<Response>.self, from: data)
+
+        if let error = rpcResponse.error {
+            throw error.toA2AError()
+        }
+
+        guard let result = rpcResponse.result else {
+            throw A2AError.invalidResponse(message: "Missing result in JSON-RPC response")
+        }
+
+        return result
     }
 
     public func fetch<Response: Decodable>(
@@ -149,7 +196,7 @@ public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
         let (data, response) = try await session.data(for: urlRequest)
         try validateHTTPResponse(response)
 
-        return try decoder.decode(Response.self, from: data)
+        return try makeDecoder().decode(Response.self, from: data)
     }
 
     // MARK: - Private Helpers
@@ -176,7 +223,7 @@ public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
 
         // Encode body
         do {
-            request.httpBody = try encoder.encode(body)
+            request.httpBody = try makeEncoder().encode(body)
         } catch {
             throw A2AError.encodingError(underlying: error)
         }
@@ -207,38 +254,13 @@ public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
     }
 
     private func jsonRPCMethod(for endpoint: A2AEndpoint) -> String {
-        // Map endpoints to JSON-RPC method names
-        switch endpoint.path {
-        case "/messages:send":
-            return "SendMessage"
-        case "/messages:stream":
-            return "SendStreamingMessage"
-        case let path where path.contains("/tasks/") && path.hasSuffix(":cancel"):
-            return "CancelTask"
-        case let path where path.contains("/tasks/") && path.hasSuffix(":subscribe"):
-            return "SubscribeToTask"
-        case let path where path.contains("/pushNotificationConfigs"):
-            if endpoint.method == .put {
-                return "SetTaskPushNotificationConfig"
-            } else if endpoint.method == .get && !path.hasSuffix("/pushNotificationConfigs") {
-                return "GetTaskPushNotificationConfig"
-            } else if endpoint.method == .get {
-                return "ListTaskPushNotificationConfigs"
-            } else if endpoint.method == .delete {
-                return "DeleteTaskPushNotificationConfig"
-            }
-            return "PushNotificationConfig"
-        case "/tasks":
-            return "ListTasks"
-        case let path where path.hasPrefix("/tasks/"):
-            return "GetTask"
-        case "/agentCard:extended":
-            return "GetExtendedAgentCard"
-        default:
-            // Use path as method name fallback
-            return endpoint.path.replacingOccurrences(of: "/", with: ".")
-                .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        // Use the method name from the endpoint definition if available
+        if let method = endpoint.jsonRPCMethod {
+            return method
         }
+        // Fallback: derive method name from path
+        return endpoint.path.replacingOccurrences(of: "/", with: ".")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "."))
     }
 
     private func decodeStreamingEvent(from sseEvent: SSEEvent) throws -> StreamingEvent {
@@ -246,12 +268,18 @@ public final class JSONRPCTransport: A2ATransport, @unchecked Sendable {
             throw A2AError.invalidResponse(message: "Invalid SSE data encoding")
         }
 
+        let decoder = makeDecoder()
+
         // For JSON-RPC streaming, events may be wrapped in JSON-RPC response format
-        // First try direct decoding
+        // First try direct decoding based on event type hint
         if let update = try? decoder.decode(TaskStatusUpdateEvent.self, from: data) {
             return .taskStatusUpdate(update)
         } else if let update = try? decoder.decode(TaskArtifactUpdateEvent.self, from: data) {
             return .taskArtifactUpdate(update)
+        } else if let task = try? decoder.decode(A2ATask.self, from: data) {
+            return .task(task)
+        } else if let message = try? decoder.decode(Message.self, from: data) {
+            return .message(message)
         }
 
         // Try JSON-RPC wrapped format
