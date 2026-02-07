@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-02-07
 
 ### Breaking Changes - A2A Protocol v1.0 RC Compliance
 
@@ -147,30 +147,6 @@ AgentCard(name: "Agent", supportedInterfaces: [
 - Comprehensive documentation
 - Example code snippets
 
-## [1.0.0] - TBD
-
-Initial public release.
-
 ---
 
-## Version History Format
-
-### [Version] - YYYY-MM-DD
-
-#### Added
-- New features
-
-#### Changed
-- Changes in existing functionality
-
-#### Deprecated
-- Soon-to-be removed features
-
-#### Removed
-- Removed features
-
-#### Fixed
-- Bug fixes
-
-#### Security
-- Vulnerability fixes
+[1.0.0]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.0

@@ -13,7 +13,7 @@ We take security seriously. If you discover a security vulnerability in A2AClien
 ### How to Report
 
 1. **Do NOT** create a public GitHub issue for security vulnerabilities
-2. Email security concerns to the maintainers (see CODEOWNERS or repository settings)
+2. Use [GitHub Security Advisories](https://github.com/tolgaki/a2a-client-swift/security/advisories/new) to report vulnerabilities privately
 3. Include as much detail as possible:
    - Description of the vulnerability
    - Steps to reproduce

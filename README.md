@@ -1,6 +1,6 @@
 # A2AClient
 
-[![CI](https://github.com/a2aproject/a2a-client-swift/actions/workflows/ci.yml/badge.svg)](https://github.com/a2aproject/a2a-client-swift/actions/workflows/ci.yml)
+[![CI](https://github.com/tolgaki/a2a-client-swift/actions/workflows/ci.yml/badge.svg)](https://github.com/tolgaki/a2a-client-swift/actions/workflows/ci.yml)
 [![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20watchOS%20%7C%20tvOS-blue.svg)](https://developer.apple.com)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
@@ -10,9 +10,8 @@ A Swift client library for the Agent-to-Agent (A2A) Protocol, enabling seamless 
 ## Quick Links
 
 - [Documentation](DESIGN.md)
-- [API Reference](https://a2aproject.github.io/a2a-client-swift/)
 - [A2A Protocol Spec](https://a2a-protocol.org/latest/)
-- [Issues](https://github.com/a2aproject/a2a-client-swift/issues)
+- [Issues](https://github.com/tolgaki/a2a-client-swift/issues)
 - [Contributing](CONTRIBUTING.md)
 
 ## Overview
@@ -38,7 +37,7 @@ Add A2AClient to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/a2aproject/a2a-client-swift.git", from: "1.0.0")
+    .package(url: "https://github.com/tolgaki/a2a-client-swift.git", from: "1.0.0")
 ]
 ```
 
@@ -56,7 +55,7 @@ targets: [
 ### Xcode
 
 1. Go to File > Add Package Dependencies
-2. Enter the repository URL: `https://github.com/a2aproject/a2a-client-swift`
+2. Enter the repository URL: `https://github.com/tolgaki/a2a-client-swift`
 3. Select the version and add the package
 
 ## Quick Start
@@ -264,9 +263,11 @@ let client = A2AClient(configuration: config)
 
 ```swift
 let oauth = OAuth2Authentication(
-    tokenURL: URL(string: "https://auth.example.com/token")!,
-    clientId: "your-client-id",
-    clientSecret: "your-client-secret"
+    configuration: .init(
+        tokenUrl: "https://auth.example.com/token",
+        clientId: "your-client-id",
+        clientSecret: "your-client-secret"
+    )
 )
 
 let config = A2AClientConfiguration(baseURL: url)
@@ -299,8 +300,8 @@ let pushConfig = PushNotificationConfig(
     token: "secret-verification-token"
 )
 
-// Set the configuration for a task
-try await client.setPushNotificationConfig(taskId: task.id, config: pushConfig)
+// Create the configuration for a task
+try await client.createPushNotificationConfig(taskId: task.id, config: pushConfig)
 
 // List existing configurations
 let configs = try await client.listPushNotificationConfigs(taskId: task.id)
@@ -407,7 +408,7 @@ do {
 | `listTasks(_:)` | List tasks with optional filters |
 | `cancelTask(_:)` | Cancel a task |
 | `subscribeToTask(_:)` | Subscribe to task updates |
-| `setPushNotificationConfig(taskId:config:)` | Configure push notifications |
+| `createPushNotificationConfig(taskId:config:)` | Configure push notifications |
 | `getPushNotificationConfig(taskId:configId:)` | Get push notification config |
 | `listPushNotificationConfigs(taskId:)` | List push notification configs |
 | `deletePushNotificationConfig(taskId:configId:)` | Delete push notification config |

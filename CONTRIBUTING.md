@@ -38,7 +38,7 @@ cd a2a-client-swift
 3. Add the upstream remote:
 
 ```bash
-git remote add upstream https://github.com/ORIGINAL-OWNER/a2a-client-swift.git
+git remote add upstream https://github.com/tolgaki/a2a-client-swift.git
 ```
 
 ## Development Setup
@@ -196,28 +196,25 @@ swift test --verbose
 
 ### Writing Tests
 
-1. **Test File Naming**: `*Tests.swift` (e.g., `MessageTests.swift`)
+1. **Test File Naming**: `*Tests.swift` (e.g., `MessageTests.swift`), using XCTest
 
 2. **Test Structure**:
 
 ```swift
-import Testing
+import XCTest
 @testable import A2AClient
 
-@Suite("Message Tests")
-struct MessageTests {
-    @Test("User message has correct role")
-    func userMessageRole() {
+final class MessageTests: XCTestCase {
+    func testUserMessageRole() {
         let message = Message.user("Hello")
-        #expect(message.role == .user)
+        XCTAssertEqual(message.role, .user)
     }
 
-    @Test("Message encodes to JSON correctly")
-    func messageEncoding() throws {
+    func testMessageEncoding() throws {
         let message = Message.user("Test")
         let data = try JSONEncoder().encode(message)
         let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
-        #expect(json["role"] as? String == "user")
+        XCTAssertEqual(json["role"] as? String, "user")
     }
 }
 ```
@@ -337,13 +334,12 @@ print("Debug: \(message)")
 
 ### Working with Async Code
 
-Test async code with proper structure:
+Test async code with XCTest:
 
 ```swift
-@Test("Async operation completes")
-func asyncOperation() async throws {
+func testAsyncOperation() async throws {
     let result = try await client.sendMessage("Test")
-    #expect(result.isMessage)
+    XCTAssertTrue(result.isMessage)
 }
 ```
 
