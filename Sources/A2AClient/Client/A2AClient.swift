@@ -137,8 +137,8 @@ public final class A2AClient: Sendable {
     ///   - message: The message to send.
     ///   - configuration: Optional configuration for accepted output modes, blocking, history length, etc.
     /// - Returns: The response, which is either a Task or Message.
-    public func sendMessage(_ message: Message, configuration: MessageSendConfiguration? = nil) async throws -> SendMessageResponse {
-        let request = SendMessageRequest(message: message, configuration: configuration)
+    public func sendMessage(_ message: Message, configuration: MessageSendConfiguration? = nil, metadata: [String: AnyCodable]? = nil) async throws -> SendMessageResponse {
+        let request = SendMessageRequest(message: message, configuration: configuration, metadata: metadata)
         return try await transport.send(
             request: request,
             to: .sendMessage,
@@ -173,8 +173,8 @@ public final class A2AClient: Sendable {
     ///   - message: The message to send.
     ///   - configuration: Optional configuration for accepted output modes, history length, etc.
     /// - Returns: An async sequence of streaming events.
-    public func sendStreamingMessage(_ message: Message, configuration: MessageSendConfiguration? = nil) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
-        let request = SendMessageRequest(message: message, configuration: configuration)
+    public func sendStreamingMessage(_ message: Message, configuration: MessageSendConfiguration? = nil, metadata: [String: AnyCodable]? = nil) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
+        let request = SendMessageRequest(message: message, configuration: configuration, metadata: metadata)
         return try await transport.stream(request: request, to: .sendStreamingMessage)
     }
 
@@ -262,10 +262,12 @@ public final class A2AClient: Sendable {
 
     /// Cancels a task.
     ///
-    /// - Parameter taskId: The task ID to cancel.
+    /// - Parameters:
+    ///   - taskId: The task ID to cancel.
+    ///   - metadata: Optional metadata for the cancel request.
     /// - Returns: The updated task.
-    public func cancelTask(_ taskId: String) async throws -> A2ATask {
-        let request = TaskIdParams(id: taskId)
+    public func cancelTask(_ taskId: String, metadata: [String: AnyCodable]? = nil) async throws -> A2ATask {
+        let request = CancelTaskRequest(id: taskId, metadata: metadata)
         return try await transport.send(
             request: request,
             to: .cancelTask(id: taskId),
@@ -386,9 +388,27 @@ public struct SendMessageRequest: Codable, Sendable {
     /// Optional configuration for the send operation.
     public let configuration: MessageSendConfiguration?
 
-    public init(message: Message, configuration: MessageSendConfiguration? = nil) {
+    /// Optional metadata associated with this request.
+    public let metadata: [String: AnyCodable]?
+
+    public init(message: Message, configuration: MessageSendConfiguration? = nil, metadata: [String: AnyCodable]? = nil) {
         self.message = message
         self.configuration = configuration
+        self.metadata = metadata
+    }
+}
+
+/// Request for cancelling a task.
+public struct CancelTaskRequest: Codable, Sendable {
+    /// The task identifier.
+    public let id: String
+
+    /// Optional metadata associated with this cancel request.
+    public let metadata: [String: AnyCodable]?
+
+    public init(id: String, metadata: [String: AnyCodable]? = nil) {
+        self.id = id
+        self.metadata = metadata
     }
 }
 

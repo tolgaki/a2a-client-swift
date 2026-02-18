@@ -31,6 +31,9 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
     /// For oauth2: OAuth 2.0 flow configurations.
     public let flows: OAuthFlows?
 
+    /// For oauth2: OAuth 2.0 metadata discovery URL.
+    public let oauth2MetadataUrl: String?
+
     /// For openIdConnect: OpenID Connect discovery URL.
     public let openIdConnectUrl: String?
 
@@ -42,6 +45,7 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         scheme: String? = nil,
         bearerFormat: String? = nil,
         flows: OAuthFlows? = nil,
+        oauth2MetadataUrl: String? = nil,
         openIdConnectUrl: String? = nil
     ) {
         self.type = type
@@ -51,6 +55,7 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         self.scheme = scheme
         self.bearerFormat = bearerFormat
         self.flows = flows
+        self.oauth2MetadataUrl = oauth2MetadataUrl
         self.openIdConnectUrl = openIdConnectUrl
     }
 
@@ -60,9 +65,10 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         case name
         case `in`
         case scheme
-        case bearerFormat
+        case bearerFormat = "bearer_format"
         case flows
-        case openIdConnectUrl
+        case oauth2MetadataUrl = "oauth2_metadata_url"
+        case openIdConnectUrl = "open_id_connect_url"
     }
 }
 
@@ -110,22 +116,37 @@ public struct OAuthFlows: Codable, Sendable, Equatable {
     /// Client credentials flow configuration.
     public let clientCredentials: OAuthFlow?
 
+    /// Device code flow configuration.
+    public let deviceCode: OAuthFlow?
+
     /// Implicit flow configuration.
+    /// - Note: Deprecated per A2A spec. Prefer authorization code or device code flows.
     public let implicit: OAuthFlow?
 
     /// Password flow configuration.
+    /// - Note: Deprecated per A2A spec. Prefer client credentials or device code flows.
     public let password: OAuthFlow?
 
     public init(
         authorizationCode: OAuthFlow? = nil,
         clientCredentials: OAuthFlow? = nil,
+        deviceCode: OAuthFlow? = nil,
         implicit: OAuthFlow? = nil,
         password: OAuthFlow? = nil
     ) {
         self.authorizationCode = authorizationCode
         self.clientCredentials = clientCredentials
+        self.deviceCode = deviceCode
         self.implicit = implicit
         self.password = password
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case authorizationCode = "authorization_code"
+        case clientCredentials = "client_credentials"
+        case deviceCode = "device_code"
+        case implicit
+        case password
     }
 }
 
@@ -136,7 +157,7 @@ public struct OAuthFlow: Codable, Sendable, Equatable {
     /// Authorization URL (for authorization code and implicit flows).
     public let authorizationUrl: String?
 
-    /// Token URL (for authorization code, client credentials, and password flows).
+    /// Token URL (for authorization code, client credentials, device code, and password flows).
     public let tokenUrl: String?
 
     /// Refresh URL for obtaining new tokens.
@@ -145,16 +166,35 @@ public struct OAuthFlow: Codable, Sendable, Equatable {
     /// Available scopes for this flow.
     public let scopes: [String: String]?
 
+    /// Whether PKCE is required (for authorization code flow).
+    public let pkceRequired: Bool?
+
+    /// Device authorization URL (for device code flow).
+    public let deviceAuthorizationUrl: String?
+
     public init(
         authorizationUrl: String? = nil,
         tokenUrl: String? = nil,
         refreshUrl: String? = nil,
-        scopes: [String: String]? = nil
+        scopes: [String: String]? = nil,
+        pkceRequired: Bool? = nil,
+        deviceAuthorizationUrl: String? = nil
     ) {
         self.authorizationUrl = authorizationUrl
         self.tokenUrl = tokenUrl
         self.refreshUrl = refreshUrl
         self.scopes = scopes
+        self.pkceRequired = pkceRequired
+        self.deviceAuthorizationUrl = deviceAuthorizationUrl
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case authorizationUrl = "authorization_url"
+        case tokenUrl = "token_url"
+        case refreshUrl = "refresh_url"
+        case scopes
+        case pkceRequired = "pkce_required"
+        case deviceAuthorizationUrl = "device_authorization_url"
     }
 }
 
@@ -220,6 +260,7 @@ extension SecurityScheme {
         authorizationUrl: String,
         tokenUrl: String,
         scopes: [String: String]? = nil,
+        pkceRequired: Bool? = nil,
         description: String? = nil
     ) -> SecurityScheme {
         SecurityScheme(
@@ -229,7 +270,28 @@ extension SecurityScheme {
                 authorizationCode: OAuthFlow(
                     authorizationUrl: authorizationUrl,
                     tokenUrl: tokenUrl,
-                    scopes: scopes
+                    scopes: scopes,
+                    pkceRequired: pkceRequired
+                )
+            )
+        )
+    }
+
+    /// Creates an OAuth 2.0 security scheme with device code flow.
+    public static func oauth2DeviceCode(
+        deviceAuthorizationUrl: String,
+        tokenUrl: String,
+        scopes: [String: String]? = nil,
+        description: String? = nil
+    ) -> SecurityScheme {
+        SecurityScheme(
+            type: .oauth2,
+            description: description,
+            flows: OAuthFlows(
+                deviceCode: OAuthFlow(
+                    tokenUrl: tokenUrl,
+                    scopes: scopes,
+                    deviceAuthorizationUrl: deviceAuthorizationUrl
                 )
             )
         )
