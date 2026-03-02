@@ -34,6 +34,9 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
     /// For openIdConnect: OpenID Connect discovery URL.
     public let openIdConnectUrl: String?
 
+    /// For oauth2: OAuth 2.0 Authorization Server Metadata URL (RFC 8414).
+    public let oauth2MetadataUrl: String?
+
     public init(
         type: SecuritySchemeType,
         description: String? = nil,
@@ -42,7 +45,8 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         scheme: String? = nil,
         bearerFormat: String? = nil,
         flows: OAuthFlows? = nil,
-        openIdConnectUrl: String? = nil
+        openIdConnectUrl: String? = nil,
+        oauth2MetadataUrl: String? = nil
     ) {
         self.type = type
         self.description = description
@@ -52,6 +56,7 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         self.bearerFormat = bearerFormat
         self.flows = flows
         self.openIdConnectUrl = openIdConnectUrl
+        self.oauth2MetadataUrl = oauth2MetadataUrl
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -60,9 +65,10 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         case name
         case `in`
         case scheme
-        case bearerFormat
+        case bearerFormat = "bearer_format"
         case flows
-        case openIdConnectUrl
+        case openIdConnectUrl = "open_id_connect_url"
+        case oauth2MetadataUrl = "oauth2_metadata_url"
     }
 }
 
@@ -111,21 +117,36 @@ public struct OAuthFlows: Codable, Sendable, Equatable {
     public let clientCredentials: OAuthFlow?
 
     /// Implicit flow configuration.
+    @available(*, deprecated, message: "Implicit flow is deprecated per A2A spec")
     public let implicit: OAuthFlow?
 
     /// Password flow configuration.
+    @available(*, deprecated, message: "Password flow is deprecated per A2A spec")
     public let password: OAuthFlow?
+
+    /// Device code flow configuration (RFC 8628).
+    public let deviceCode: OAuthFlow?
 
     public init(
         authorizationCode: OAuthFlow? = nil,
         clientCredentials: OAuthFlow? = nil,
         implicit: OAuthFlow? = nil,
-        password: OAuthFlow? = nil
+        password: OAuthFlow? = nil,
+        deviceCode: OAuthFlow? = nil
     ) {
         self.authorizationCode = authorizationCode
         self.clientCredentials = clientCredentials
         self.implicit = implicit
         self.password = password
+        self.deviceCode = deviceCode
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case authorizationCode = "authorization_code"
+        case clientCredentials = "client_credentials"
+        case implicit
+        case password
+        case deviceCode = "device_code"
     }
 }
 
@@ -136,7 +157,7 @@ public struct OAuthFlow: Codable, Sendable, Equatable {
     /// Authorization URL (for authorization code and implicit flows).
     public let authorizationUrl: String?
 
-    /// Token URL (for authorization code, client credentials, and password flows).
+    /// Token URL (for authorization code, client credentials, password, and device code flows).
     public let tokenUrl: String?
 
     /// Refresh URL for obtaining new tokens.
@@ -145,16 +166,35 @@ public struct OAuthFlow: Codable, Sendable, Equatable {
     /// Available scopes for this flow.
     public let scopes: [String: String]?
 
+    /// Whether PKCE is required (for authorization code flow).
+    public let pkceRequired: Bool?
+
+    /// Device authorization URL (for device code flow, RFC 8628).
+    public let deviceAuthorizationUrl: String?
+
     public init(
         authorizationUrl: String? = nil,
         tokenUrl: String? = nil,
         refreshUrl: String? = nil,
-        scopes: [String: String]? = nil
+        scopes: [String: String]? = nil,
+        pkceRequired: Bool? = nil,
+        deviceAuthorizationUrl: String? = nil
     ) {
         self.authorizationUrl = authorizationUrl
         self.tokenUrl = tokenUrl
         self.refreshUrl = refreshUrl
         self.scopes = scopes
+        self.pkceRequired = pkceRequired
+        self.deviceAuthorizationUrl = deviceAuthorizationUrl
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case authorizationUrl = "authorization_url"
+        case tokenUrl = "token_url"
+        case refreshUrl = "refresh_url"
+        case scopes
+        case pkceRequired = "pkce_required"
+        case deviceAuthorizationUrl = "device_authorization_url"
     }
 }
 
@@ -201,7 +241,8 @@ extension SecurityScheme {
     public static func oauth2ClientCredentials(
         tokenUrl: String,
         scopes: [String: String]? = nil,
-        description: String? = nil
+        description: String? = nil,
+        oauth2MetadataUrl: String? = nil
     ) -> SecurityScheme {
         SecurityScheme(
             type: .oauth2,
@@ -211,7 +252,8 @@ extension SecurityScheme {
                     tokenUrl: tokenUrl,
                     scopes: scopes
                 )
-            )
+            ),
+            oauth2MetadataUrl: oauth2MetadataUrl
         )
     }
 
@@ -220,7 +262,9 @@ extension SecurityScheme {
         authorizationUrl: String,
         tokenUrl: String,
         scopes: [String: String]? = nil,
-        description: String? = nil
+        pkceRequired: Bool? = nil,
+        description: String? = nil,
+        oauth2MetadataUrl: String? = nil
     ) -> SecurityScheme {
         SecurityScheme(
             type: .oauth2,
@@ -229,9 +273,33 @@ extension SecurityScheme {
                 authorizationCode: OAuthFlow(
                     authorizationUrl: authorizationUrl,
                     tokenUrl: tokenUrl,
-                    scopes: scopes
+                    scopes: scopes,
+                    pkceRequired: pkceRequired
                 )
-            )
+            ),
+            oauth2MetadataUrl: oauth2MetadataUrl
+        )
+    }
+
+    /// Creates an OAuth 2.0 security scheme with device code flow (RFC 8628).
+    public static func oauth2DeviceCode(
+        deviceAuthorizationUrl: String,
+        tokenUrl: String,
+        scopes: [String: String]? = nil,
+        description: String? = nil,
+        oauth2MetadataUrl: String? = nil
+    ) -> SecurityScheme {
+        SecurityScheme(
+            type: .oauth2,
+            description: description,
+            flows: OAuthFlows(
+                deviceCode: OAuthFlow(
+                    tokenUrl: tokenUrl,
+                    scopes: scopes,
+                    deviceAuthorizationUrl: deviceAuthorizationUrl
+                )
+            ),
+            oauth2MetadataUrl: oauth2MetadataUrl
         )
     }
 

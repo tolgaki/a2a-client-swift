@@ -152,6 +152,70 @@ final class ClientOperationTests: XCTestCase {
         XCTAssertFalse(json.contains("historyLength"))
     }
 
+    func testSendMessageRequest_TenantAndMetadataFields() throws {
+        let message = Message.user("Hello")
+        let request = SendMessageRequest(
+            tenant: "acme",
+            message: message,
+            metadata: ["trace_id": AnyCodable("abc-123")]
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(request)
+        let json = String(data: data, encoding: .utf8)!
+
+        XCTAssertTrue(json.contains("\"tenant\""))
+        XCTAssertTrue(json.contains("acme"))
+        XCTAssertTrue(json.contains("\"metadata\""))
+        XCTAssertTrue(json.contains("trace_id"))
+        XCTAssertEqual(request.tenant, "acme")
+    }
+
+    func testSendMessageRequest_NilTenantAndMetadataOmitted() throws {
+        let message = Message.user("Hello")
+        let request = SendMessageRequest(message: message)
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(request)
+        let json = String(data: data, encoding: .utf8)!
+
+        XCTAssertFalse(json.contains("tenant"))
+        XCTAssertFalse(json.contains("metadata"))
+        XCTAssertNil(request.tenant)
+        XCTAssertNil(request.metadata)
+    }
+
+    // MARK: - CancelTaskParams Tests
+
+    func testCancelTaskParams_IncludesMetadata() throws {
+        let params = CancelTaskParams(
+            id: "task-1",
+            metadata: ["reason": AnyCodable("user_requested")]
+        )
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(params)
+
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(CancelTaskParams.self, from: data)
+
+        XCTAssertEqual(decoded.id, "task-1")
+        XCTAssertNotNil(decoded.metadata)
+    }
+
+    func testCancelTaskParams_MinimalCreation() throws {
+        let params = CancelTaskParams(id: "task-1")
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(params)
+        let json = String(data: data, encoding: .utf8)!
+
+        XCTAssertTrue(json.contains("\"id\""))
+        XCTAssertFalse(json.contains("metadata"))
+        XCTAssertNil(params.tenant)
+        XCTAssertNil(params.metadata)
+    }
+
     // MARK: - SendMessageResponse Tests
 
     func testSendMessageResponse_DecodesTask() throws {

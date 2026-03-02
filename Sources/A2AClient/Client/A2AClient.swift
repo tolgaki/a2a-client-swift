@@ -206,6 +206,8 @@ public final class A2AClient: Sendable {
     /// - Returns: The task.
     public func getTask(_ taskId: String, historyLength: Int? = nil) async throws -> A2ATask {
         var queryItems: [URLQueryItem] = []
+        // Include task ID for JSON-RPC transport compatibility (HTTP/REST uses path param)
+        queryItems.append(URLQueryItem(name: "id", value: taskId))
         if let historyLength = historyLength {
             queryItems.append(URLQueryItem(name: "history_length", value: String(historyLength)))
         }
@@ -262,10 +264,12 @@ public final class A2AClient: Sendable {
 
     /// Cancels a task.
     ///
-    /// - Parameter taskId: The task ID to cancel.
+    /// - Parameters:
+    ///   - taskId: The task ID to cancel.
+    ///   - metadata: Optional metadata associated with the cancellation.
     /// - Returns: The updated task.
-    public func cancelTask(_ taskId: String) async throws -> A2ATask {
-        let request = TaskIdParams(id: taskId)
+    public func cancelTask(_ taskId: String, metadata: [String: AnyCodable]? = nil) async throws -> A2ATask {
+        let request = CancelTaskParams(id: taskId, metadata: metadata)
         return try await transport.send(
             request: request,
             to: .cancelTask(id: taskId),
@@ -315,9 +319,14 @@ public final class A2AClient: Sendable {
         taskId: String,
         configId: String
     ) async throws -> TaskPushNotificationConfig {
+        // Include IDs for JSON-RPC transport compatibility (HTTP/REST uses path params)
+        let queryItems = [
+            URLQueryItem(name: "task_id", value: taskId),
+            URLQueryItem(name: "id", value: configId)
+        ]
         return try await transport.get(
             from: .getPushNotificationConfig(taskId: taskId, configId: configId),
-            queryItems: [],
+            queryItems: queryItems,
             responseType: TaskPushNotificationConfig.self
         )
     }
@@ -327,9 +336,11 @@ public final class A2AClient: Sendable {
     /// - Parameter taskId: The task ID.
     /// - Returns: The list of configurations.
     public func listPushNotificationConfigs(taskId: String) async throws -> [TaskPushNotificationConfig] {
+        // Include task ID for JSON-RPC transport compatibility (HTTP/REST uses path param)
+        let queryItems = [URLQueryItem(name: "task_id", value: taskId)]
         let response = try await transport.get(
             from: .listPushNotificationConfigs(taskId: taskId),
-            queryItems: [],
+            queryItems: queryItems,
             responseType: ListPushNotificationConfigsResponse.self
         )
         return response.configs ?? []
@@ -380,15 +391,28 @@ public final class A2AClient: Sendable {
 
 /// Request for sending a message.
 public struct SendMessageRequest: Codable, Sendable {
+    /// Optional tenant identifier for multi-tenant agents.
+    public let tenant: String?
+
     /// The message to send.
     public let message: Message
 
     /// Optional configuration for the send operation.
     public let configuration: MessageSendConfiguration?
 
-    public init(message: Message, configuration: MessageSendConfiguration? = nil) {
+    /// Optional metadata associated with this request.
+    public let metadata: [String: AnyCodable]?
+
+    public init(
+        tenant: String? = nil,
+        message: Message,
+        configuration: MessageSendConfiguration? = nil,
+        metadata: [String: AnyCodable]? = nil
+    ) {
+        self.tenant = tenant
         self.message = message
         self.configuration = configuration
+        self.metadata = metadata
     }
 }
 

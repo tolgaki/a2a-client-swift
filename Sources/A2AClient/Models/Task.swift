@@ -114,6 +114,26 @@ public struct TaskIdParams: Codable, Sendable, Equatable {
     }
 }
 
+// MARK: - CancelTaskParams
+
+/// Parameters for cancelling a task.
+public struct CancelTaskParams: Codable, Sendable, Equatable {
+    /// Optional tenant identifier.
+    public let tenant: String?
+
+    /// The task identifier.
+    public let id: String
+
+    /// Optional metadata associated with the cancellation request.
+    public let metadata: [String: AnyCodable]?
+
+    public init(tenant: String? = nil, id: String, metadata: [String: AnyCodable]? = nil) {
+        self.tenant = tenant
+        self.id = id
+        self.metadata = metadata
+    }
+}
+
 // MARK: - TaskQueryParams
 
 /// Parameters for listing tasks with optional filtering and pagination.
