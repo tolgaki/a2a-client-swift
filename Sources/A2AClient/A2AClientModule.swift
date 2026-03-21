@@ -25,7 +25,7 @@ public typealias ClientConfiguration = A2AClientConfiguration
 /// A2A Client library version information.
 public enum A2AClientVersion {
     /// The library version.
-    public static let version = "1.0.1"
+    public static let version = "1.0.2"
 
     /// The A2A protocol version supported.
     public static let protocolVersion = "1.0"
