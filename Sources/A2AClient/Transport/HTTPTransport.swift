@@ -87,7 +87,10 @@ public final class HTTPTransport: A2ATransport, Sendable {
         return AsyncThrowingStream { continuation in
             let streamTask = _Concurrency.Task {
                 do {
-                    let (bytes, response) = try await session.bytes(for: urlRequest)
+                    // Use URLSession.shared for streaming — custom URLSession(configuration:)
+                    // can buffer the entire response instead of delivering bytes incrementally.
+                    // Authentication is applied per-request, so .shared works correctly.
+                    let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
                     try validateResponse(response, data: nil)
 
                     let parser = SSEParser()
@@ -97,6 +100,12 @@ public final class HTTPTransport: A2ATransport, Sendable {
                             let streamingEvent = try decodeStreamingEvent(from: event)
                             continuation.yield(streamingEvent)
                         }
+                    }
+
+                    // Flush any remaining buffered event (last data: line with no trailing blank line)
+                    if let event = parser.parse(line: "") {
+                        let streamingEvent = try decodeStreamingEvent(from: event)
+                        continuation.yield(streamingEvent)
                     }
 
                     continuation.finish()
