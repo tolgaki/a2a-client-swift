@@ -63,6 +63,7 @@ public struct Part: Codable, Sendable, Equatable {
     // MARK: - Codable
 
     private enum CodingKeys: String, CodingKey {
+        case kind
         case text
         case raw
         case url
@@ -74,6 +75,9 @@ public struct Part: Codable, Sendable, Equatable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Read kind discriminator if present (optional for backwards compatibility)
+        let _ = try container.decodeIfPresent(String.self, forKey: .kind)
 
         // Decode content fields
         self.text = try container.decodeIfPresent(String.self, forKey: .text)
@@ -120,6 +124,17 @@ public struct Part: Codable, Sendable, Equatable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+
+        // Encode kind discriminator
+        if text != nil {
+            try container.encode("text", forKey: .kind)
+        } else if raw != nil {
+            try container.encode("file", forKey: .kind)
+        } else if url != nil {
+            try container.encode("file", forKey: .kind)
+        } else if data != nil {
+            try container.encode("data", forKey: .kind)
+        }
 
         // Encode content fields (only one should be set)
         try container.encodeIfPresent(text, forKey: .text)

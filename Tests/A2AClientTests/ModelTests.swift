@@ -103,6 +103,57 @@ final class ModelTests: XCTestCase {
         XCTAssertFalse(json.contains("mediaType"))
     }
 
+    func testPart_KindDiscriminatorEncoding() throws {
+        let encoder = JSONEncoder()
+
+        // Text part should have kind "text"
+        let textPart = Part.text("hello")
+        let textJSON = String(data: try encoder.encode(textPart), encoding: .utf8)!
+        XCTAssertTrue(textJSON.contains("\"kind\":\"text\""))
+
+        // Raw (file data) part should have kind "file"
+        let rawPart = Part.raw("data".data(using: .utf8)!)
+        let rawJSON = String(data: try encoder.encode(rawPart), encoding: .utf8)!
+        XCTAssertTrue(rawJSON.contains("\"kind\":\"file\""))
+
+        // URL (file ref) part should have kind "file"
+        let urlPart = Part.url("https://example.com/f.txt")
+        let urlJSON = String(data: try encoder.encode(urlPart), encoding: .utf8)!
+        XCTAssertTrue(urlJSON.contains("\"kind\":\"file\""))
+
+        // Data part should have kind "data"
+        let dataPart = Part.data(AnyCodable(["key": "val"]))
+        let dataJSON = String(data: try encoder.encode(dataPart), encoding: .utf8)!
+        XCTAssertTrue(dataJSON.contains("\"kind\":\"data\""))
+    }
+
+    func testPart_DecodingWithKindField() throws {
+        // Servers may send the kind field — ensure it's accepted and ignored gracefully
+        let json = """
+        {"kind": "text", "text": "Hello", "media_type": "text/plain"}
+        """
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Part.self, from: data)
+
+        XCTAssertTrue(decoded.isText)
+        XCTAssertEqual(decoded.text, "Hello")
+        XCTAssertEqual(decoded.mediaType, "text/plain")
+    }
+
+    func testPart_DecodingWithoutKindField() throws {
+        // Backwards compat: JSON without kind should still decode
+        let json = """
+        {"text": "Hello"}
+        """
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Part.self, from: data)
+
+        XCTAssertTrue(decoded.isText)
+        XCTAssertEqual(decoded.text, "Hello")
+    }
+
     func testPart_DataPartEncodingAndDecoding() throws {
         let part = Part.data(["key": "value", "number": 42])
 
