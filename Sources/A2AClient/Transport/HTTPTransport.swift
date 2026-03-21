@@ -325,36 +325,48 @@ final class SSEParser {
     /// - Parameter line: The line to parse.
     /// - Returns: An SSEEvent if the line completes an event, nil otherwise.
     /// - Note: This method is not thread-safe. Use one parser per stream.
+    ///
+    /// Handles both standard SSE (blank-line delimited) and servers like the
+    /// Graph RP that send consecutive `data:` lines without blank separators.
     func parse(line: String) -> SSEEvent? {
-        // Empty line signals end of event
+        // Empty line signals end of event (standard SSE)
         if line.isEmpty {
             guard !currentData.isEmpty else { return nil }
-
-            let event = SSEEvent(
-                event: currentEvent,
-                data: currentData.joined(separator: "\n"),
-                id: currentId
-            )
-
-            // Reset state
-            currentEvent = nil
-            currentData = []
-            currentId = nil
-
-            return event
+            return emitEvent()
         }
 
         // Parse field — per the SSE spec, only strip a single leading space after the colon
-        if line.hasPrefix("event:") {
+        if line.hasPrefix("data:") {
+            let value = Self.stripSingleLeadingSpace(String(line.dropFirst(5)))
+            // If we already have buffered data, emit it first — the server
+            // sent consecutive data: lines without blank-line separators.
+            if !currentData.isEmpty {
+                let event = emitEvent()
+                currentData.append(value)
+                return event
+            }
+            currentData.append(value)
+        } else if line.hasPrefix("event:") {
             currentEvent = Self.stripSingleLeadingSpace(String(line.dropFirst(6)))
-        } else if line.hasPrefix("data:") {
-            currentData.append(Self.stripSingleLeadingSpace(String(line.dropFirst(5))))
         } else if line.hasPrefix("id:") {
             currentId = Self.stripSingleLeadingSpace(String(line.dropFirst(3)))
         }
         // Ignore retry: and comments (lines starting with :)
 
         return nil
+    }
+
+    /// Emits the currently buffered event and resets state.
+    private func emitEvent() -> SSEEvent {
+        let event = SSEEvent(
+            event: currentEvent,
+            data: currentData.joined(separator: "\n"),
+            id: currentId
+        )
+        currentEvent = nil
+        currentData = []
+        currentId = nil
+        return event
     }
 
     /// Strips a single leading U+0020 SPACE character per the SSE spec.

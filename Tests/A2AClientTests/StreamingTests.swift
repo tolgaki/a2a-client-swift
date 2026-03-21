@@ -126,16 +126,46 @@ final class StreamingTests: XCTestCase {
         XCTAssertEqual(event?.id, "12345")
     }
 
-    func testSSEParser_ParseMultiLineData() {
+    func testSSEParser_ConsecutiveDataLinesEmitSeparateEvents() {
+        // Servers like Graph RP send consecutive data: lines without blank separators.
+        // Each data: line is a complete event; the second data: line triggers
+        // emission of the first buffered event.
         let parser = SSEParser()
 
-        _ = parser.parse(line: "data: line 1")
-        _ = parser.parse(line: "data: line 2")
-        _ = parser.parse(line: "data: line 3")
-        let event = parser.parse(line: "")
+        let event1 = parser.parse(line: "data: line 1")
+        XCTAssertNil(event1) // first line buffers
 
-        XCTAssertNotNil(event)
-        XCTAssertEqual(event?.data, "line 1\nline 2\nline 3")
+        let event2 = parser.parse(line: "data: line 2")
+        XCTAssertNotNil(event2) // second line emits buffered "line 1"
+        XCTAssertEqual(event2?.data, "line 1")
+
+        let event3 = parser.parse(line: "data: line 3")
+        XCTAssertNotNil(event3)
+        XCTAssertEqual(event3?.data, "line 2")
+
+        // Blank line emits the last buffered event
+        let event4 = parser.parse(line: "")
+        XCTAssertNotNil(event4)
+        XCTAssertEqual(event4?.data, "line 3")
+    }
+
+    func testSSEParser_StandardBlankLineDelimitedEvents() {
+        // Standard SSE: event + data + blank line
+        let parser = SSEParser()
+
+        _ = parser.parse(line: "event: status")
+        _ = parser.parse(line: "data: payload1")
+        let event1 = parser.parse(line: "")
+        XCTAssertNotNil(event1)
+        XCTAssertEqual(event1?.event, "status")
+        XCTAssertEqual(event1?.data, "payload1")
+
+        _ = parser.parse(line: "event: artifact")
+        _ = parser.parse(line: "data: payload2")
+        let event2 = parser.parse(line: "")
+        XCTAssertNotNil(event2)
+        XCTAssertEqual(event2?.event, "artifact")
+        XCTAssertEqual(event2?.data, "payload2")
     }
 
     func testSSEParser_EmptyLinesWithoutDataProduceNoEvent() {
