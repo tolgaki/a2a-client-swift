@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-03-21
+
+### Fixed
+
+- **Streaming: 0-event bug against Graph RP** — Custom `URLSession(configuration:)` can buffer the entire SSE response instead of delivering bytes incrementally. Streaming now uses `URLSession.shared` (authentication is applied per-request). The custom session is still used for non-streaming requests.
+- **Streaming: last event lost** — When the SSE stream ends without a trailing blank line, the parser's last buffered event is now flushed.
+
+## [1.0.4] - 2026-03-21
+
+### Fixed
+
+- **SSE parser: consecutive `data:` lines** — Servers like the Graph RP send consecutive `data:` lines without blank-line separators. The parser now emits the buffered event when a new `data:` line arrives while data is already buffered. Standard blank-line-delimited SSE still works unchanged.
+
+## [1.0.3] - 2026-03-21
+
+### Fixed
+
+- **JSON-RPC streaming decoder** — Replaced trial-and-error decoding with `kind`-based dispatch. The decoder now reads the `kind` discriminator from JSON-RPC wrapped results and dispatches to the correct type: `"task"`, `"message"`, `"status-update"`, `"artifact-update"`.
+- **`MessageSendConfiguration.blocking` renamed to `returnImmediately`** — Aligns with the A2A proto spec's `return_immediately` field. Note the inverted semantics: `returnImmediately: true` means "don't block", `returnImmediately: false` means "wait for completion".
+
+### Added
+
+- `final` field on `TaskStatusUpdateEvent` — signals the last event in a stream.
+- `kind` discriminator encoding/decoding on `A2ATask` (`"task"`), `TaskStatusUpdateEvent` (`"status-update"`), `TaskArtifactUpdateEvent` (`"artifact-update"`).
+- `metadata` and `tenant` fields on `SendMessageRequest` per proto spec.
+
+### Breaking Changes
+
+- `MessageSendConfiguration.blocking` → `returnImmediately` (inverted semantics).
+
+## [1.0.2] - 2026-03-21
+
+### Fixed
+
+- **JSON keys default to camelCase** — Removed all explicit snake_case `CodingKey` string mappings. JSON keys now use camelCase by default (`messageId`, `contextId`, `taskId`, etc.) matching the Graph RP convention.
+- **Message `kind` discriminator** — `Message` now encodes `"kind": "message"` in JSON output. Decoding accepts `kind` optionally for backwards compatibility.
+
+### Added
+
+- `JSONKeyCasing` configuration option (`.camelCase` default, `.snakeCase` for A2A spec servers). Set via `A2AClientConfiguration(baseURL: url, jsonKeyCasing: .snakeCase)`.
+- The casing option flows through to transport encoders/decoders via `A2AServiceParameters`.
+
+### Breaking Changes
+
+- JSON keys are now camelCase by default. Use `jsonKeyCasing: .snakeCase` for servers expecting snake_case.
+
+## [1.0.1] - 2026-03-21
+
+### Fixed
+
+- **Part `kind` discriminator** — `Part` now encodes a `kind` field in JSON: `"text"` for text parts, `"file"` for raw/url parts, `"data"` for data parts. Decoding accepts `kind` optionally for backwards compatibility.
+
 ## [1.0.0] - 2026-02-07
 
 ### Breaking Changes - A2A Protocol v1.0 RC Compliance
@@ -149,4 +201,9 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
+[1.0.5]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.5
+[1.0.4]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.4
+[1.0.3]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.3
+[1.0.2]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.2
+[1.0.1]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.1
 [1.0.0]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.0

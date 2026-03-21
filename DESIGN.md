@@ -75,6 +75,7 @@ A2AClient
     │       ├── transportBinding
     │       ├── protocolVersion
     │       ├── sessionConfiguration
+    │       ├── jsonKeyCasing (.camelCase | .snakeCase)
     │       └── authenticationProvider
     │
     ├── A2ATransport (protocol)
@@ -142,20 +143,20 @@ All models are:
 
 #### Message & Part
 
-Messages use a compositional design with `Part` enum for content:
+Messages use a compositional design with `Part` struct using a "oneof" pattern:
 
 ```swift
-enum Part {
-    case text(TextPart)
-    case file(FilePart)
-    case data(DataPart)
+struct Part {
+    let text: String?       // Plain text content
+    let raw: Data?          // Raw binary data
+    let url: String?        // URL reference
+    let data: AnyCodable?   // Structured JSON data
+    let filename: String?   // Optional filename
+    let mediaType: String?  // Optional MIME type
 }
 ```
 
-This design enables:
-- Type-safe content handling
-- Extensibility for new part types
-- Clear separation of content concerns
+Factory methods (`Part.text()`, `Part.file()`, `Part.data()`, etc.) enforce that exactly one content field is set. Both `Part` and `Message` encode a `kind` discriminator in JSON (`"text"`, `"file"`, `"data"` for parts; `"message"` for messages) for compatibility with the JSON-RPC binding.
 
 #### Task & TaskState
 
@@ -313,15 +314,21 @@ A2AClient
     ▼
 A2ATransport
     │
-    │ Initiate SSE connection
+    │ Authenticate request, initiate SSE connection
     ▼
-URLSession (dataTask with delegate)
+URLSession.shared (bytes.lines)
     │
-    │ Receive data chunks
+    │ Receive lines incrementally
     ▼
 SSE Parser
     │
-    │ Parse "event:" and "data:" lines
+    │ Parse "data:" lines, emit on blank line or
+    │ next "data:" line (for servers without separators)
+    ▼
+Event Decoder
+    │
+    │ JSON-RPC: unwrap response, dispatch by "kind"
+    │ HTTP/REST: dispatch by SSE "event:" type
     ▼
 AsyncThrowingStream<StreamingEvent>
     │
@@ -331,6 +338,8 @@ Application
     │
     │ for try await event in stream { ... }
 ```
+
+Streaming uses `URLSession.shared` instead of the configured custom session to ensure bytes are delivered incrementally. Custom `URLSession(configuration:)` instances can buffer the entire SSE response, causing `bytes.lines` to yield 0 lines. Authentication headers are applied per-request by `AuthenticationProvider`, so `.shared` works correctly.
 
 ## Concurrency Model
 
@@ -419,6 +428,19 @@ Response:
     "result": { ... }
 }
 ```
+
+#### JSON-RPC Streaming Wire Format
+
+For streaming (`message/stream`), the server responds with `Content-Type: text/event-stream`. Each SSE `data:` line is a full JSON-RPC response wrapping the event. The `kind` field in the result discriminates the event type:
+
+```
+data: {"jsonrpc":"2.0","id":1,"result":{"kind":"task","id":"t-1","contextId":"ctx-1","status":{"state":"working"}}}
+data: {"jsonrpc":"2.0","id":1,"result":{"kind":"status-update","taskId":"t-1","contextId":"ctx-1","status":{"state":"working"},"final":false}}
+data: {"jsonrpc":"2.0","id":1,"result":{"kind":"artifact-update","taskId":"t-1","contextId":"ctx-1","artifact":{"artifactId":"a-1","parts":[{"kind":"text","text":"chunk..."}]}}}
+data: {"jsonrpc":"2.0","id":1,"result":{"kind":"status-update","taskId":"t-1","contextId":"ctx-1","status":{"state":"completed"},"final":true}}
+```
+
+The `StreamEventResult` decoder reads the JSON-RPC envelope, extracts `result.kind`, and dispatches to the appropriate model type. The stream ends when `final: true` is received or the connection closes.
 
 ### Endpoint Abstraction
 

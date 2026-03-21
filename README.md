@@ -37,7 +37,7 @@ Add A2AClient to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/tolgaki/a2a-client-swift.git", from: "1.0.0")
+    .package(url: "https://github.com/tolgaki/a2a-client-swift.git", from: "1.0.5")
 ]
 ```
 
@@ -338,7 +338,21 @@ let config = A2AClientConfiguration(baseURL: url, transportBinding: .jsonRPC)
 let client = A2AClient(configuration: config)
 ```
 
+### JSON Key Casing
+
+Some servers (like the Microsoft Graph RP) use camelCase JSON keys, while others follow the A2A spec's snake_case convention. The library defaults to camelCase and supports configurable casing:
+
+```swift
+// Default: camelCase (messageId, contextId, taskId)
+let config = A2AClientConfiguration(baseURL: url)
+
+// For servers using snake_case (message_id, context_id, task_id)
+let config = A2AClientConfiguration(baseURL: url, jsonKeyCasing: .snakeCase)
+```
+
 ### Custom URLSession
+
+The custom URLSession is used for non-streaming requests. Streaming always uses `URLSession.shared` to ensure bytes are delivered incrementally (custom sessions can buffer the entire SSE response).
 
 ```swift
 let sessionConfig = URLSessionConfiguration.default
@@ -390,8 +404,8 @@ let weatherAgent = agents.first { agent in
     agent.card.skills.contains { !Set(["weather"]).isDisjoint(with: $0.tags) }
 }
 
-// Blocking request for immediate results
-let config = MessageSendConfiguration(blocking: true)
+// Synchronous request (waits for completion)
+let config = MessageSendConfiguration(returnImmediately: false)
 let response = try await client.sendMessage("Weather in Tokyo?", configuration: config)
 
 // Streaming for real-time updates
