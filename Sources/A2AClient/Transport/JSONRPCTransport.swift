@@ -276,26 +276,20 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
         let decoder = makeDecoder()
 
-        // For JSON-RPC streaming, events may be wrapped in JSON-RPC response format
-        // First try direct decoding based on event type hint
-        if let update = try? decoder.decode(TaskStatusUpdateEvent.self, from: data) {
-            return .taskStatusUpdate(update)
-        } else if let update = try? decoder.decode(TaskArtifactUpdateEvent.self, from: data) {
-            return .taskArtifactUpdate(update)
-        } else if let task = try? decoder.decode(A2ATask.self, from: data) {
-            return .task(task)
-        } else if let message = try? decoder.decode(Message.self, from: data) {
-            return .message(message)
+        // JSON-RPC streaming: each SSE data line is a full JSON-RPC response
+        // wrapping the actual event. The event's "kind" field discriminates the type.
+        if let rpcResponse = try? decoder.decode(JSONRPCResponse<StreamEventResult>.self, from: data) {
+            if let error = rpcResponse.error {
+                throw error.toA2AError()
+            }
+            if let result = rpcResponse.result {
+                return result.event
+            }
         }
 
-        // Try JSON-RPC wrapped format
-        if let rpcResponse = try? decoder.decode(JSONRPCResponse<StreamEventWrapper>.self, from: data),
-           let result = rpcResponse.result {
-            if let statusUpdate = result.statusUpdate {
-                return .taskStatusUpdate(statusUpdate)
-            } else if let artifactUpdate = result.artifactUpdate {
-                return .taskArtifactUpdate(artifactUpdate)
-            }
+        // Fallback: try direct kind-based decoding (without JSON-RPC wrapper)
+        if let result = try? decoder.decode(StreamEventResult.self, from: data) {
+            return result.event
         }
 
         throw A2AError.invalidResponse(message: "Unknown streaming event format")
@@ -331,14 +325,45 @@ struct JSONRPCError: Decodable {
     }
 }
 
-/// Wrapper for streaming events that may contain either status or artifact updates.
-struct StreamEventWrapper: Decodable {
-    let statusUpdate: TaskStatusUpdateEvent?
-    let artifactUpdate: TaskArtifactUpdateEvent?
+/// Decodes a streaming event using the `kind` discriminator field.
+///
+/// The JSON-RPC streaming binding wraps each event in a JSON-RPC response.
+/// The `kind` field identifies the event type:
+/// - `"task"` → A2ATask
+/// - `"message"` → Message
+/// - `"status-update"` → TaskStatusUpdateEvent
+/// - `"artifact-update"` → TaskArtifactUpdateEvent
+struct StreamEventResult: Decodable {
+    let event: StreamingEvent
 
     private enum CodingKeys: String, CodingKey {
-        case statusUpdate
-        case artifactUpdate
+        case kind
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(String.self, forKey: .kind)
+
+        switch kind {
+        case "task":
+            let task = try A2ATask(from: decoder)
+            self.event = .task(task)
+        case "message":
+            let message = try Message(from: decoder)
+            self.event = .message(message)
+        case "status-update":
+            let update = try TaskStatusUpdateEvent(from: decoder)
+            self.event = .taskStatusUpdate(update)
+        case "artifact-update":
+            let update = try TaskArtifactUpdateEvent(from: decoder)
+            self.event = .taskArtifactUpdate(update)
+        default:
+            throw DecodingError.dataCorruptedError(
+                forKey: .kind,
+                in: container,
+                debugDescription: "Unknown streaming event kind: \(kind)"
+            )
+        }
     }
 }
 

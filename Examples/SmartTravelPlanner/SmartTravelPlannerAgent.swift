@@ -324,7 +324,7 @@ struct OnDeviceAgent: Sendable {
 
     /// Checks weather using a blocking sendMessage call.
     func checkWeather(prompt: String, using agent: RemoteAgent) async throws -> String {
-        let config = MessageSendConfiguration(blocking: true)
+        let config = MessageSendConfiguration(returnImmediately: false)
         let response = try await agent.client.sendMessage(prompt, configuration: config)
 
         switch response {

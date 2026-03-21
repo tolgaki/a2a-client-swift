@@ -125,26 +125,29 @@ public struct MessageSendConfiguration: Codable, Sendable, Equatable {
     /// - >0: Return at most this many recent messages
     public let historyLength: Int?
 
-    /// If true, wait until task reaches terminal/interrupted state before returning.
-    public let blocking: Bool?
+    /// If `true`, the operation returns immediately after creating the task,
+    /// even if processing is still in progress.
+    /// If `false` (default), the operation waits until the task reaches a
+    /// terminal or interrupted state before returning.
+    public let returnImmediately: Bool?
 
     public init(
         acceptedOutputModes: [String]? = nil,
         pushNotificationConfig: PushNotificationConfig? = nil,
         historyLength: Int? = nil,
-        blocking: Bool? = nil
+        returnImmediately: Bool? = nil
     ) {
         self.acceptedOutputModes = acceptedOutputModes
         self.pushNotificationConfig = pushNotificationConfig
         self.historyLength = historyLength
-        self.blocking = blocking
+        self.returnImmediately = returnImmediately
     }
 
     private enum CodingKeys: String, CodingKey {
         case acceptedOutputModes
         case pushNotificationConfig
         case historyLength
-        case blocking
+        case returnImmediately
     }
 }
 

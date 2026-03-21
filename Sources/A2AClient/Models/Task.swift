@@ -45,12 +45,35 @@ public struct A2ATask: Codable, Sendable, Equatable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case kind
         case id
         case contextId
         case status
         case artifacts
         case history
         case metadata
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let _ = try container.decodeIfPresent(String.self, forKey: .kind)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.contextId = try container.decode(String.self, forKey: .contextId)
+        self.status = try container.decode(TaskStatus.self, forKey: .status)
+        self.artifacts = try container.decodeIfPresent([Artifact].self, forKey: .artifacts)
+        self.history = try container.decodeIfPresent([Message].self, forKey: .history)
+        self.metadata = try container.decodeIfPresent([String: AnyCodable].self, forKey: .metadata)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode("task", forKey: .kind)
+        try container.encode(id, forKey: .id)
+        try container.encode(contextId, forKey: .contextId)
+        try container.encode(status, forKey: .status)
+        try container.encodeIfPresent(artifacts, forKey: .artifacts)
+        try container.encodeIfPresent(history, forKey: .history)
+        try container.encodeIfPresent(metadata, forKey: .metadata)
     }
 }
 

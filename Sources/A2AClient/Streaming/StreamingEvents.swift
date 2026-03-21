@@ -137,6 +137,9 @@ public struct TaskStatusUpdateEvent: Codable, Sendable, Equatable {
     /// The updated status.
     public let status: TaskStatus
 
+    /// If true, this is the final event in the stream.
+    public let `final`: Bool?
+
     /// Optional metadata.
     public let metadata: [String: AnyCodable]?
 
@@ -144,19 +147,43 @@ public struct TaskStatusUpdateEvent: Codable, Sendable, Equatable {
         taskId: String,
         contextId: String,
         status: TaskStatus,
+        final: Bool? = nil,
         metadata: [String: AnyCodable]? = nil
     ) {
         self.taskId = taskId
         self.contextId = contextId
         self.status = status
+        self.final = final
         self.metadata = metadata
     }
 
     private enum CodingKeys: String, CodingKey {
+        case kind
         case taskId
         case contextId
         case status
+        case `final`
         case metadata
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let _ = try container.decodeIfPresent(String.self, forKey: .kind)
+        self.taskId = try container.decode(String.self, forKey: .taskId)
+        self.contextId = try container.decode(String.self, forKey: .contextId)
+        self.status = try container.decode(TaskStatus.self, forKey: .status)
+        self.final = try container.decodeIfPresent(Bool.self, forKey: .final)
+        self.metadata = try container.decodeIfPresent([String: AnyCodable].self, forKey: .metadata)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode("status-update", forKey: .kind)
+        try container.encode(taskId, forKey: .taskId)
+        try container.encode(contextId, forKey: .contextId)
+        try container.encode(status, forKey: .status)
+        try container.encodeIfPresent(self.final, forKey: .final)
+        try container.encodeIfPresent(metadata, forKey: .metadata)
     }
 }
 
@@ -199,12 +226,35 @@ public struct TaskArtifactUpdateEvent: Codable, Sendable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
+        case kind
         case taskId
         case contextId
         case artifact
         case append
         case lastChunk
         case metadata
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let _ = try container.decodeIfPresent(String.self, forKey: .kind)
+        self.taskId = try container.decode(String.self, forKey: .taskId)
+        self.contextId = try container.decode(String.self, forKey: .contextId)
+        self.artifact = try container.decode(Artifact.self, forKey: .artifact)
+        self.append = try container.decodeIfPresent(Bool.self, forKey: .append)
+        self.lastChunk = try container.decodeIfPresent(Bool.self, forKey: .lastChunk)
+        self.metadata = try container.decodeIfPresent([String: AnyCodable].self, forKey: .metadata)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode("artifact-update", forKey: .kind)
+        try container.encode(taskId, forKey: .taskId)
+        try container.encode(contextId, forKey: .contextId)
+        try container.encode(artifact, forKey: .artifact)
+        try container.encodeIfPresent(append, forKey: .append)
+        try container.encodeIfPresent(lastChunk, forKey: .lastChunk)
+        try container.encodeIfPresent(metadata, forKey: .metadata)
     }
 }
 

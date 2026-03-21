@@ -103,7 +103,7 @@ final class ClientOperationTests: XCTestCase {
         let config = MessageSendConfiguration(
             acceptedOutputModes: ["text/plain", "application/json"],
             historyLength: 5,
-            blocking: true
+            returnImmediately: true
         )
         let message = Message.user("Hello")
         let request = SendMessageRequest(message: message, configuration: config)
@@ -118,7 +118,7 @@ final class ClientOperationTests: XCTestCase {
         XCTAssertNotNil(decoded.configuration)
         XCTAssertEqual(decoded.configuration?.acceptedOutputModes, ["text/plain", "application/json"])
         XCTAssertEqual(decoded.configuration?.historyLength, 5)
-        XCTAssertEqual(decoded.configuration?.blocking, true)
+        XCTAssertEqual(decoded.configuration?.returnImmediately, true)
     }
 
     func testSendMessageRequest_NilConfigurationOmitted() throws {
@@ -137,7 +137,7 @@ final class ClientOperationTests: XCTestCase {
         let config = MessageSendConfiguration(
             acceptedOutputModes: ["text/plain"],
             historyLength: 3,
-            blocking: false
+            returnImmediately: false
         )
         let message = Message.user("Test")
         let request = SendMessageRequest(message: message, configuration: config)
@@ -148,6 +148,7 @@ final class ClientOperationTests: XCTestCase {
 
         XCTAssertTrue(json.contains("acceptedOutputModes"))
         XCTAssertTrue(json.contains("historyLength"))
+        XCTAssertTrue(json.contains("returnImmediately"))
         XCTAssertFalse(json.contains("accepted_output_modes"))
         XCTAssertFalse(json.contains("history_length"))
     }

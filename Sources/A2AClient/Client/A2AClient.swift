@@ -381,15 +381,28 @@ public final class A2AClient: Sendable {
 
 /// Request for sending a message.
 public struct SendMessageRequest: Codable, Sendable {
+    /// Optional tenant identifier.
+    public let tenant: String?
+
     /// The message to send.
     public let message: Message
 
     /// Optional configuration for the send operation.
     public let configuration: MessageSendConfiguration?
 
-    public init(message: Message, configuration: MessageSendConfiguration? = nil) {
+    /// Optional metadata for the request.
+    public let metadata: [String: AnyCodable]?
+
+    public init(
+        tenant: String? = nil,
+        message: Message,
+        configuration: MessageSendConfiguration? = nil,
+        metadata: [String: AnyCodable]? = nil
+    ) {
+        self.tenant = tenant
         self.message = message
         self.configuration = configuration
+        self.metadata = metadata
     }
 }
 

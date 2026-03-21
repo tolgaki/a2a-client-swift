@@ -103,7 +103,7 @@ struct OnDeviceAgent: Sendable {
     /// Demonstrates: `sendMessage(_:configuration:)` with `MessageSendConfiguration(blocking: true)`
     /// and handling `SendMessageResponse.message`.
     func checkWeather(destination: String, using agent: RemoteAgent) async throws -> String {
-        let config = MessageSendConfiguration(blocking: true)
+        let config = MessageSendConfiguration(returnImmediately: false)
         let response = try await agent.client.sendMessage(
             "What is the weather forecast for \(destination) next week?",
             configuration: config
