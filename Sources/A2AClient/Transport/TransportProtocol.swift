@@ -180,10 +180,14 @@ public struct A2AServiceParameters: Sendable {
     /// Optional tenant identifier for multi-tenant agents.
     public let tenant: String?
 
-    public init(version: String = "1.0", extensions: [String]? = nil, tenant: String? = nil) {
+    /// JSON key casing convention.
+    public let jsonKeyCasing: JSONKeyCasing
+
+    public init(version: String = "1.0", extensions: [String]? = nil, tenant: String? = nil, jsonKeyCasing: JSONKeyCasing = .camelCase) {
         self.version = version
         self.extensions = extensions
         self.tenant = tenant
+        self.jsonKeyCasing = jsonKeyCasing
     }
 
     /// HTTP header name for version.

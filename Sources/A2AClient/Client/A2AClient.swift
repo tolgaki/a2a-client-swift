@@ -33,7 +33,8 @@ public final class A2AClient: Sendable {
         let serviceParameters = A2AServiceParameters(
             version: configuration.protocolVersion,
             extensions: configuration.extensions,
-            tenant: configuration.tenant
+            tenant: configuration.tenant,
+            jsonKeyCasing: configuration.jsonKeyCasing
         )
 
         switch configuration.transportBinding {
@@ -207,7 +208,7 @@ public final class A2AClient: Sendable {
     public func getTask(_ taskId: String, historyLength: Int? = nil) async throws -> A2ATask {
         var queryItems: [URLQueryItem] = []
         if let historyLength = historyLength {
-            queryItems.append(URLQueryItem(name: "history_length", value: String(historyLength)))
+            queryItems.append(URLQueryItem(name: "historyLength", value: String(historyLength)))
         }
         return try await transport.get(
             from: .getTask(id: taskId),
@@ -223,26 +224,26 @@ public final class A2AClient: Sendable {
     public func listTasks(_ params: TaskQueryParams = TaskQueryParams()) async throws -> TaskListResponse {
         var queryItems: [URLQueryItem] = []
         if let contextId = params.contextId {
-            queryItems.append(URLQueryItem(name: "context_id", value: contextId))
+            queryItems.append(URLQueryItem(name: "contextId", value: contextId))
         }
         if let status = params.status {
             queryItems.append(URLQueryItem(name: "status", value: status.rawValue))
         }
         if let pageSize = params.pageSize {
-            queryItems.append(URLQueryItem(name: "page_size", value: String(pageSize)))
+            queryItems.append(URLQueryItem(name: "pageSize", value: String(pageSize)))
         }
         if let pageToken = params.pageToken {
-            queryItems.append(URLQueryItem(name: "page_token", value: pageToken))
+            queryItems.append(URLQueryItem(name: "pageToken", value: pageToken))
         }
         if let historyLength = params.historyLength {
-            queryItems.append(URLQueryItem(name: "history_length", value: String(historyLength)))
+            queryItems.append(URLQueryItem(name: "historyLength", value: String(historyLength)))
         }
         if let statusTimestampAfter = params.statusTimestampAfter {
             let formatter = ISO8601DateFormatter()
-            queryItems.append(URLQueryItem(name: "status_timestamp_after", value: formatter.string(from: statusTimestampAfter)))
+            queryItems.append(URLQueryItem(name: "statusTimestampAfter", value: formatter.string(from: statusTimestampAfter)))
         }
         if let includeArtifacts = params.includeArtifacts {
-            queryItems.append(URLQueryItem(name: "include_artifacts", value: String(includeArtifacts)))
+            queryItems.append(URLQueryItem(name: "includeArtifacts", value: String(includeArtifacts)))
         }
         return try await transport.get(
             from: .listTasks,

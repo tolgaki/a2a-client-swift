@@ -47,7 +47,7 @@ public struct Artifact: Codable, Sendable, Equatable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case artifactId = "artifact_id"
+        case artifactId
         case name
         case description
         case parts

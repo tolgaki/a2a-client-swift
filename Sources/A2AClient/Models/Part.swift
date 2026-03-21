@@ -70,7 +70,7 @@ public struct Part: Codable, Sendable, Equatable {
         case data
         case metadata
         case filename
-        case mediaType = "media_type"
+        case mediaType
     }
 
     public init(from decoder: Decoder) throws {
@@ -331,9 +331,9 @@ public struct FileContent: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case name
-        case mediaType = "media_type"
-        case fileWithBytes = "file_with_bytes"
-        case fileWithUri = "file_with_uri"
+        case mediaType
+        case fileWithBytes
+        case fileWithUri
     }
 
     public static func inline(data: Data, name: String? = nil, mediaType: String? = nil) -> FileContent {

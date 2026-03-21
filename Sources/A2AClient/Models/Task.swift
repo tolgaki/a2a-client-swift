@@ -46,7 +46,7 @@ public struct A2ATask: Codable, Sendable, Equatable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id
-        case contextId = "context_id"
+        case contextId
         case status
         case artifacts
         case history
@@ -110,7 +110,7 @@ public struct TaskIdParams: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case tenant
         case id
-        case historyLength = "history_length"
+        case historyLength
     }
 }
 
@@ -164,13 +164,13 @@ public struct TaskQueryParams: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case tenant
-        case contextId = "context_id"
+        case contextId
         case status
-        case pageSize = "page_size"
-        case pageToken = "page_token"
-        case historyLength = "history_length"
-        case statusTimestampAfter = "status_timestamp_after"
-        case includeArtifacts = "include_artifacts"
+        case pageSize
+        case pageToken
+        case historyLength
+        case statusTimestampAfter
+        case includeArtifacts
     }
 }
 
@@ -204,8 +204,8 @@ public struct TaskListResponse: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case tasks
-        case nextPageToken = "next_page_token"
-        case pageSize = "page_size"
-        case totalSize = "total_size"
+        case nextPageToken
+        case pageSize
+        case totalSize
     }
 }

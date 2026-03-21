@@ -34,12 +34,18 @@ public final class HTTPTransport: A2ATransport, Sendable {
     private func makeEncoder() -> JSONEncoder {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
+        if serviceParameters.jsonKeyCasing == .snakeCase {
+            encoder.keyEncodingStrategy = .convertToSnakeCase
+        }
         return encoder
     }
 
     private func makeDecoder() -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
+        if serviceParameters.jsonKeyCasing == .snakeCase {
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+        }
         return decoder
     }
 

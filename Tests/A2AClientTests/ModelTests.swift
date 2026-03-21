@@ -92,15 +92,15 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(decoded.mediaType, "application/pdf")
     }
 
-    func testPart_JSONUsesSnakeCase() throws {
+    func testPart_JSONUsesCamelCaseByDefault() throws {
         let part = Part.file(uri: "https://example.com/file.pdf", name: "doc.pdf", mediaType: "application/pdf")
 
         let encoder = JSONEncoder()
         let data = try encoder.encode(part)
         let json = String(data: data, encoding: .utf8)!
 
-        XCTAssertTrue(json.contains("media_type"))
-        XCTAssertFalse(json.contains("mediaType"))
+        XCTAssertTrue(json.contains("mediaType"))
+        XCTAssertFalse(json.contains("media_type"))
     }
 
     func testPart_KindDiscriminatorEncoding() throws {
@@ -130,7 +130,7 @@ final class ModelTests: XCTestCase {
     func testPart_DecodingWithKindField() throws {
         // Servers may send the kind field — ensure it's accepted and ignored gracefully
         let json = """
-        {"kind": "text", "text": "Hello", "media_type": "text/plain"}
+        {"kind": "text", "text": "Hello", "mediaType": "text/plain"}
         """
         let data = json.data(using: .utf8)!
         let decoder = JSONDecoder()
@@ -197,7 +197,7 @@ final class ModelTests: XCTestCase {
     func testPart_NoContentFieldsThrowsDecodingError() throws {
         // JSON with no content fields
         let json = """
-        {"filename": "test.txt", "media_type": "text/plain"}
+        {"filename": "test.txt", "mediaType": "text/plain"}
         """
         let data = json.data(using: .utf8)!
 
@@ -264,7 +264,7 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(decoded.textContent, "Test message")
     }
 
-    func testMessage_JSONUsesSnakeCase() throws {
+    func testMessage_JSONUsesCamelCaseByDefault() throws {
         let message = Message(
             messageId: "msg-123",
             role: .user,
@@ -278,13 +278,47 @@ final class ModelTests: XCTestCase {
         let data = try encoder.encode(message)
         let json = String(data: data, encoding: .utf8)!
 
-        XCTAssertTrue(json.contains("message_id"))
-        XCTAssertTrue(json.contains("context_id"))
-        XCTAssertTrue(json.contains("task_id"))
-        XCTAssertTrue(json.contains("reference_task_ids"))
-        XCTAssertFalse(json.contains("messageId"))
-        XCTAssertFalse(json.contains("contextId"))
-        XCTAssertFalse(json.contains("taskId"))
+        XCTAssertTrue(json.contains("messageId"))
+        XCTAssertTrue(json.contains("contextId"))
+        XCTAssertTrue(json.contains("taskId"))
+        XCTAssertTrue(json.contains("referenceTaskIds"))
+        XCTAssertFalse(json.contains("message_id"))
+        XCTAssertFalse(json.contains("context_id"))
+        XCTAssertFalse(json.contains("task_id"))
+    }
+
+    func testMessage_KindDiscriminatorEncoding() throws {
+        let message = Message.user("Hello")
+
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(message)
+        let json = String(data: data, encoding: .utf8)!
+
+        XCTAssertTrue(json.contains("\"kind\":\"message\""))
+    }
+
+    func testMessage_DecodingWithKindField() throws {
+        let json = """
+        {"kind": "message", "messageId": "msg-1", "role": "agent", "parts": [{"kind": "text", "text": "Hi"}]}
+        """
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Message.self, from: data)
+
+        XCTAssertEqual(decoded.messageId, "msg-1")
+        XCTAssertEqual(decoded.role, .agent)
+    }
+
+    func testMessage_DecodingWithoutKindField() throws {
+        let json = """
+        {"messageId": "msg-1", "role": "user", "parts": [{"text": "Hi"}]}
+        """
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(Message.self, from: data)
+
+        XCTAssertEqual(decoded.messageId, "msg-1")
+        XCTAssertEqual(decoded.role, .user)
     }
 
     func testMessage_RoleIncludesUnspecified() {
@@ -347,7 +381,7 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(decoded.artifacts?.count, 1)
     }
 
-    func testTask_JSONUsesSnakeCase() throws {
+    func testTask_JSONUsesCamelCaseByDefault() throws {
         let task = A2ATask(
             id: "task-123",
             contextId: "ctx-456",
@@ -358,8 +392,8 @@ final class ModelTests: XCTestCase {
         let data = try encoder.encode(task)
         let json = String(data: data, encoding: .utf8)!
 
-        XCTAssertTrue(json.contains("context_id"))
-        XCTAssertFalse(json.contains("contextId"))
+        XCTAssertTrue(json.contains("contextId"))
+        XCTAssertFalse(json.contains("context_id"))
     }
 
     // MARK: - AgentCard Tests
@@ -403,7 +437,7 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(decoded.skills.count, 1)
     }
 
-    func testAgentCard_JSONUsesSnakeCase() throws {
+    func testAgentCard_JSONUsesCamelCaseByDefault() throws {
         let card = AgentCard(
             name: "Test",
             description: "Test agent",
@@ -421,14 +455,14 @@ final class ModelTests: XCTestCase {
         let data = try encoder.encode(card)
         let json = String(data: data, encoding: .utf8)!
 
-        XCTAssertTrue(json.contains("supported_interfaces"))
-        XCTAssertTrue(json.contains("protocol_binding"))
-        XCTAssertTrue(json.contains("protocol_version"))
-        XCTAssertTrue(json.contains("default_input_modes"))
-        XCTAssertTrue(json.contains("default_output_modes"))
-        XCTAssertTrue(json.contains("push_notifications"))
-        XCTAssertFalse(json.contains("protocolVersion"))
-        XCTAssertFalse(json.contains("defaultInputModes"))
+        XCTAssertTrue(json.contains("supportedInterfaces"))
+        XCTAssertTrue(json.contains("protocolBinding"))
+        XCTAssertTrue(json.contains("protocolVersion"))
+        XCTAssertTrue(json.contains("defaultInputModes"))
+        XCTAssertTrue(json.contains("defaultOutputModes"))
+        XCTAssertTrue(json.contains("pushNotifications"))
+        XCTAssertFalse(json.contains("supported_interfaces"))
+        XCTAssertFalse(json.contains("default_input_modes"))
     }
 
     func testAgentCard_HasRequiredFields() {
@@ -452,15 +486,15 @@ final class ModelTests: XCTestCase {
     }
 
     func testAgentCard_EmptyInterfacesThrowsDecodingError() throws {
-        // JSON with empty supported_interfaces array
+        // JSON with empty supportedInterfaces array
         let json = """
         {
             "name": "Test",
             "description": "Test agent",
-            "supported_interfaces": [],
+            "supportedInterfaces": [],
             "version": "1.0",
-            "default_input_modes": ["text/plain"],
-            "default_output_modes": ["text/plain"],
+            "defaultInputModes": ["text/plain"],
+            "defaultOutputModes": ["text/plain"],
             "skills": []
         }
         """
@@ -488,7 +522,7 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(artifact.parts.count, 1)
     }
 
-    func testArtifact_JSONUsesSnakeCase() throws {
+    func testArtifact_JSONUsesCamelCaseByDefault() throws {
         let artifact = Artifact(
             artifactId: "art-123",
             name: "test",
@@ -499,8 +533,8 @@ final class ModelTests: XCTestCase {
         let data = try encoder.encode(artifact)
         let json = String(data: data, encoding: .utf8)!
 
-        XCTAssertTrue(json.contains("artifact_id"))
-        XCTAssertFalse(json.contains("artifactId"))
+        XCTAssertTrue(json.contains("artifactId"))
+        XCTAssertFalse(json.contains("artifact_id"))
     }
 
     func testArtifact_ExtensionsIsStringArray() throws {
@@ -517,6 +551,40 @@ final class ModelTests: XCTestCase {
 
         XCTAssertEqual(decoded.extensions?.count, 2)
         XCTAssertEqual(decoded.extensions?.first, "urn:a2a:ext:example")
+    }
+
+    // MARK: - Snake Case Configuration Tests
+
+    func testSnakeCaseEncoding_MessageUsesSnakeCaseKeys() throws {
+        let message = Message(
+            messageId: "msg-1",
+            role: .user,
+            parts: [.text("Hello")],
+            contextId: "ctx-1"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(message)
+        let json = String(data: data, encoding: .utf8)!
+
+        XCTAssertTrue(json.contains("message_id"))
+        XCTAssertTrue(json.contains("context_id"))
+        XCTAssertFalse(json.contains("messageId"))
+        XCTAssertFalse(json.contains("contextId"))
+    }
+
+    func testSnakeCaseDecoding_MessageDecodesFromSnakeCaseJSON() throws {
+        let json = """
+        {"message_id": "msg-1", "role": "user", "parts": [{"kind": "text", "text": "Hi"}], "context_id": "ctx-1"}
+        """
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let decoded = try decoder.decode(Message.self, from: data)
+
+        XCTAssertEqual(decoded.messageId, "msg-1")
+        XCTAssertEqual(decoded.contextId, "ctx-1")
     }
 
     // MARK: - AnyCodable Tests

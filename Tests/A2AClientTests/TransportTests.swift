@@ -133,7 +133,7 @@ final class ClientOperationTests: XCTestCase {
         XCTAssertNil(request.configuration)
     }
 
-    func testSendMessageRequest_ConfigurationUsesSnakeCase() throws {
+    func testSendMessageRequest_ConfigurationUsesCamelCaseByDefault() throws {
         let config = MessageSendConfiguration(
             acceptedOutputModes: ["text/plain"],
             historyLength: 3,
@@ -146,10 +146,10 @@ final class ClientOperationTests: XCTestCase {
         let data = try encoder.encode(request)
         let json = String(data: data, encoding: .utf8)!
 
-        XCTAssertTrue(json.contains("accepted_output_modes"))
-        XCTAssertTrue(json.contains("history_length"))
-        XCTAssertFalse(json.contains("acceptedOutputModes"))
-        XCTAssertFalse(json.contains("historyLength"))
+        XCTAssertTrue(json.contains("acceptedOutputModes"))
+        XCTAssertTrue(json.contains("historyLength"))
+        XCTAssertFalse(json.contains("accepted_output_modes"))
+        XCTAssertFalse(json.contains("history_length"))
     }
 
     // MARK: - SendMessageResponse Tests
@@ -158,7 +158,7 @@ final class ClientOperationTests: XCTestCase {
         let json = """
         {
             "id": "task-1",
-            "context_id": "ctx-1",
+            "contextId": "ctx-1",
             "status": {"state": "working"}
         }
         """
@@ -174,9 +174,9 @@ final class ClientOperationTests: XCTestCase {
     func testSendMessageResponse_DecodesMessage() throws {
         let json = """
         {
-            "message_id": "msg-1",
+            "messageId": "msg-1",
             "role": "agent",
-            "parts": [{"text": "Hello"}]
+            "parts": [{"kind": "text", "text": "Hello"}]
         }
         """
         let data = json.data(using: .utf8)!
@@ -193,7 +193,7 @@ final class ClientOperationTests: XCTestCase {
         let taskJson = """
         {
             "id": "task-1",
-            "context_id": "ctx-1",
+            "contextId": "ctx-1",
             "status": {"state": "completed"}
         }
         """
@@ -205,9 +205,9 @@ final class ClientOperationTests: XCTestCase {
         // A JSON with "role" field should decode as Message
         let messageJson = """
         {
-            "message_id": "msg-1",
+            "messageId": "msg-1",
             "role": "user",
-            "parts": [{"text": "test"}]
+            "parts": [{"kind": "text", "text": "test"}]
         }
         """
         let messageData = messageJson.data(using: .utf8)!
@@ -275,9 +275,9 @@ final class ClientOperationTests: XCTestCase {
         let data = try encoder.encode(params)
         let json = String(data: data, encoding: .utf8)!
 
-        XCTAssertTrue(json.contains("context_id"))
-        XCTAssertTrue(json.contains("page_size"))
-        XCTAssertTrue(json.contains("history_length"))
+        XCTAssertTrue(json.contains("contextId"))
+        XCTAssertTrue(json.contains("pageSize"))
+        XCTAssertTrue(json.contains("historyLength"))
     }
 
     // MARK: - Part Validation Tests
@@ -363,7 +363,7 @@ final class ClientOperationTests: XCTestCase {
         let listResponse = TaskListResponse(tasks: [], nextPageToken: "", pageSize: 50, totalSize: 0)
         transport.getResponse = listResponse
 
-        let queryItems = [URLQueryItem(name: "context_id", value: "ctx-1")]
+        let queryItems = [URLQueryItem(name: "contextId", value: "ctx-1")]
         let _: TaskListResponse = try await transport.get(
             from: .listTasks,
             queryItems: queryItems,
@@ -373,7 +373,7 @@ final class ClientOperationTests: XCTestCase {
         XCTAssertEqual(transport.getCalls.count, 1)
         XCTAssertEqual(transport.getCalls[0].endpoint, .listTasks)
         XCTAssertEqual(transport.getCalls[0].queryItems.count, 1)
-        XCTAssertEqual(transport.getCalls[0].queryItems[0].name, "context_id")
+        XCTAssertEqual(transport.getCalls[0].queryItems[0].name, "contextId")
     }
 
     func testMockTransport_ErrorPropagation() async {

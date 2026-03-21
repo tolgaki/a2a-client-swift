@@ -31,6 +31,9 @@ public struct A2AClientConfiguration: Sendable {
     /// Authentication provider for requests.
     public let authenticationProvider: (any AuthenticationProvider)?
 
+    /// JSON key casing convention for encoding/decoding.
+    public let jsonKeyCasing: JSONKeyCasing
+
     public init(
         baseURL: URL,
         transportBinding: TransportBinding = .httpREST,
@@ -39,7 +42,8 @@ public struct A2AClientConfiguration: Sendable {
         extensions: [String]? = nil,
         sessionConfiguration: URLSessionConfiguration = .default,
         timeoutInterval: TimeInterval = 60,
-        authenticationProvider: (any AuthenticationProvider)? = nil
+        authenticationProvider: (any AuthenticationProvider)? = nil,
+        jsonKeyCasing: JSONKeyCasing = .camelCase
     ) {
         self.baseURL = baseURL
         self.transportBinding = transportBinding
@@ -49,12 +53,14 @@ public struct A2AClientConfiguration: Sendable {
         self.sessionConfiguration = sessionConfiguration
         self.timeoutInterval = timeoutInterval
         self.authenticationProvider = authenticationProvider
+        self.jsonKeyCasing = jsonKeyCasing
     }
 
     /// Creates a configuration from an agent card.
     public static func from(
         agentCard: AgentCard,
-        authenticationProvider: (any AuthenticationProvider)? = nil
+        authenticationProvider: (any AuthenticationProvider)? = nil,
+        jsonKeyCasing: JSONKeyCasing = .camelCase
     ) throws -> A2AClientConfiguration {
         // Use the first (preferred) interface
         guard let interface = agentCard.supportedInterfaces.first else {
@@ -81,9 +87,24 @@ public struct A2AClientConfiguration: Sendable {
             transportBinding: transportBinding,
             protocolVersion: interface.protocolVersion,
             tenant: interface.tenant,
-            authenticationProvider: authenticationProvider
+            authenticationProvider: authenticationProvider,
+            jsonKeyCasing: jsonKeyCasing
         )
     }
+}
+
+/// JSON key casing options for encoding/decoding.
+///
+/// The A2A spec examples use snake_case (e.g., `message_id`, `context_id`),
+/// while some implementations like the Graph RP use camelCase (e.g., `messageId`, `contextId`).
+/// This option controls which convention the library uses for JSON serialization.
+public enum JSONKeyCasing: Sendable {
+    /// Use camelCase keys (e.g., `messageId`, `contextId`). This is the default.
+    case camelCase
+
+    /// Use snake_case keys (e.g., `message_id`, `context_id`).
+    /// Set this when communicating with servers that follow the A2A spec's snake_case convention.
+    case snakeCase
 }
 
 /// Transport binding options.
@@ -108,7 +129,8 @@ extension A2AClientConfiguration {
             extensions: extensions,
             sessionConfiguration: sessionConfiguration,
             timeoutInterval: timeoutInterval,
-            authenticationProvider: authenticationProvider
+            authenticationProvider: authenticationProvider,
+            jsonKeyCasing: jsonKeyCasing
         )
     }
 
@@ -122,7 +144,8 @@ extension A2AClientConfiguration {
             extensions: extensions,
             sessionConfiguration: sessionConfiguration,
             timeoutInterval: timeoutInterval,
-            authenticationProvider: authenticationProvider
+            authenticationProvider: authenticationProvider,
+            jsonKeyCasing: jsonKeyCasing
         )
     }
 
@@ -136,7 +159,8 @@ extension A2AClientConfiguration {
             extensions: extensions,
             sessionConfiguration: sessionConfiguration,
             timeoutInterval: timeoutInterval,
-            authenticationProvider: authenticationProvider
+            authenticationProvider: authenticationProvider,
+            jsonKeyCasing: jsonKeyCasing
         )
     }
 
@@ -150,7 +174,8 @@ extension A2AClientConfiguration {
             extensions: extensions,
             sessionConfiguration: sessionConfiguration,
             timeoutInterval: timeoutInterval,
-            authenticationProvider: authenticationProvider
+            authenticationProvider: authenticationProvider,
+            jsonKeyCasing: jsonKeyCasing
         )
     }
 

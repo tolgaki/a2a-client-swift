@@ -105,8 +105,8 @@ public struct TaskPushNotificationConfig: Codable, Sendable, Equatable, Identifi
     private enum CodingKeys: String, CodingKey {
         case tenant
         case id
-        case taskId = "task_id"
-        case pushNotificationConfig = "push_notification_config"
+        case taskId
+        case pushNotificationConfig
     }
 }
 
@@ -131,7 +131,7 @@ public struct CreatePushNotificationConfigParams: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case tenant
-        case taskId = "task_id"
+        case taskId
         case config
     }
 }
@@ -155,7 +155,7 @@ public struct GetPushNotificationConfigParams: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case tenant
-        case taskId = "task_id"
+        case taskId
         case id
     }
 }
@@ -183,9 +183,9 @@ public struct ListPushNotificationConfigsParams: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case tenant
-        case taskId = "task_id"
-        case pageSize = "page_size"
-        case pageToken = "page_token"
+        case taskId
+        case pageSize
+        case pageToken
     }
 }
 
@@ -204,7 +204,7 @@ public struct ListPushNotificationConfigsResponse: Codable, Sendable, Equatable 
 
     private enum CodingKeys: String, CodingKey {
         case configs
-        case nextPageToken = "next_page_token"
+        case nextPageToken
     }
 }
 
@@ -227,7 +227,7 @@ public struct DeletePushNotificationConfigParams: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case tenant
-        case taskId = "task_id"
+        case taskId
         case id
     }
 }

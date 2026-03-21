@@ -26,8 +26,8 @@ public enum StreamResponse: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case task
         case message
-        case statusUpdate = "status_update"
-        case artifactUpdate = "artifact_update"
+        case statusUpdate
+        case artifactUpdate
     }
 
     public init(from decoder: Decoder) throws {
@@ -153,8 +153,8 @@ public struct TaskStatusUpdateEvent: Codable, Sendable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case taskId = "task_id"
-        case contextId = "context_id"
+        case taskId
+        case contextId
         case status
         case metadata
     }
@@ -199,11 +199,11 @@ public struct TaskArtifactUpdateEvent: Codable, Sendable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case taskId = "task_id"
-        case contextId = "context_id"
+        case taskId
+        case contextId
         case artifact
         case append
-        case lastChunk = "last_chunk"
+        case lastChunk
         case metadata
     }
 }

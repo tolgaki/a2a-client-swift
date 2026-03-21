@@ -67,14 +67,45 @@ public struct Message: Codable, Sendable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case messageId = "message_id"
+        case kind
+        case messageId
         case role
         case parts
-        case contextId = "context_id"
-        case taskId = "task_id"
-        case referenceTaskIds = "reference_task_ids"
+        case contextId
+        case taskId
+        case referenceTaskIds
         case metadata
         case extensions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Read kind discriminator if present (optional for backwards compatibility)
+        let _ = try container.decodeIfPresent(String.self, forKey: .kind)
+
+        self.messageId = try container.decode(String.self, forKey: .messageId)
+        self.role = try container.decode(MessageRole.self, forKey: .role)
+        self.parts = try container.decode([Part].self, forKey: .parts)
+        self.contextId = try container.decodeIfPresent(String.self, forKey: .contextId)
+        self.taskId = try container.decodeIfPresent(String.self, forKey: .taskId)
+        self.referenceTaskIds = try container.decodeIfPresent([String].self, forKey: .referenceTaskIds)
+        self.metadata = try container.decodeIfPresent([String: AnyCodable].self, forKey: .metadata)
+        self.extensions = try container.decodeIfPresent([String].self, forKey: .extensions)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode("message", forKey: .kind)
+        try container.encode(messageId, forKey: .messageId)
+        try container.encode(role, forKey: .role)
+        try container.encode(parts, forKey: .parts)
+        try container.encodeIfPresent(contextId, forKey: .contextId)
+        try container.encodeIfPresent(taskId, forKey: .taskId)
+        try container.encodeIfPresent(referenceTaskIds, forKey: .referenceTaskIds)
+        try container.encodeIfPresent(metadata, forKey: .metadata)
+        try container.encodeIfPresent(extensions, forKey: .extensions)
     }
 }
 
@@ -110,9 +141,9 @@ public struct MessageSendConfiguration: Codable, Sendable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case acceptedOutputModes = "accepted_output_modes"
-        case pushNotificationConfig = "push_notification_config"
-        case historyLength = "history_length"
+        case acceptedOutputModes
+        case pushNotificationConfig
+        case historyLength
         case blocking
     }
 }

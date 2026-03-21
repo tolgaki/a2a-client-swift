@@ -89,18 +89,18 @@ public struct AgentCard: Codable, Sendable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case name
         case description
-        case supportedInterfaces = "supported_interfaces"
+        case supportedInterfaces
         case provider
         case version
-        case documentationUrl = "documentation_url"
+        case documentationUrl
         case capabilities
-        case securitySchemes = "security_schemes"
-        case securityRequirements = "security_requirements"
-        case defaultInputModes = "default_input_modes"
-        case defaultOutputModes = "default_output_modes"
+        case securitySchemes
+        case securityRequirements
+        case defaultInputModes
+        case defaultOutputModes
         case skills
         case signatures
-        case iconUrl = "icon_url"
+        case iconUrl
     }
 
     public init(from decoder: Decoder) throws {
@@ -186,9 +186,9 @@ public struct AgentInterface: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case url
-        case protocolBinding = "protocol_binding"
+        case protocolBinding
         case tenant
-        case protocolVersion = "protocol_version"
+        case protocolVersion
     }
 
     // MARK: - Protocol Binding Constants
@@ -258,9 +258,9 @@ public struct AgentCapabilities: Codable, Sendable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case streaming
-        case pushNotifications = "push_notifications"
+        case pushNotifications
         case extensions
-        case extendedAgentCard = "extended_agent_card"
+        case extendedAgentCard
     }
 }
 
@@ -347,9 +347,9 @@ public struct AgentSkill: Codable, Sendable, Equatable, Identifiable {
         case description
         case tags
         case examples
-        case inputModes = "input_modes"
-        case outputModes = "output_modes"
-        case securityRequirements = "security_requirements"
+        case inputModes
+        case outputModes
+        case securityRequirements
     }
 }
 
