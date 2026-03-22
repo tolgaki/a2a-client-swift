@@ -80,50 +80,53 @@ public final class A2AClient: Sendable {
             throw A2AError.invalidRequest(message: "Invalid domain: \(domain)")
         }
 
-        let session = URLSession.shared
-        var request = URLRequest(url: url)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw A2AError.invalidResponse(message: "Invalid response type")
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw A2AError.invalidResponse(message: "HTTP \(httpResponse.statusCode)")
-        }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
-        do {
-            return try decoder.decode(AgentCard.self, from: data)
-        } catch {
-            throw A2AError.encodingError(underlying: error)
-        }
+        return try await fetchAgentCard(from: url)
     }
 
     /// Fetches the agent card from a specific URL.
+    ///
+    /// If the URL ends with `agent.json` (v1.0 well-known path) and the fetch
+    /// fails with a non-200 status, this method automatically retries with the
+    /// legacy `agent-card.json` path (v0.3) for backward compatibility.
     public static func fetchAgentCard(from url: URL) async throws -> AgentCard {
         let session = URLSession.shared
-        var request = URLRequest(url: url)
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await session.data(for: request)
+        func fetch(from fetchURL: URL) async throws -> AgentCard {
+            var request = URLRequest(url: fetchURL)
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw A2AError.invalidResponse(message: "Invalid response type")
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw A2AError.invalidResponse(message: "Invalid response type")
+            }
+
+            guard httpResponse.statusCode == 200 else {
+                throw A2AError.invalidResponse(message: "HTTP \(httpResponse.statusCode)")
+            }
+
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+
+            return try decoder.decode(AgentCard.self, from: data)
         }
 
-        guard httpResponse.statusCode == 200 else {
-            throw A2AError.invalidResponse(message: "HTTP \(httpResponse.statusCode)")
+        do {
+            return try await fetch(from: url)
+        } catch {
+            // If the URL uses the v1.0 well-known path (agent.json), try the
+            // legacy v0.3 path (agent-card.json) as a fallback.
+            let urlString = url.absoluteString
+            if urlString.hasSuffix("/agent.json") {
+                let legacyURL = URL(string: urlString.replacingOccurrences(
+                    of: "/agent.json",
+                    with: "/agent-card.json",
+                    range: urlString.range(of: "/agent.json", options: .backwards)
+                ))!
+                return try await fetch(from: legacyURL)
+            }
+            throw error
         }
-
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
-        return try decoder.decode(AgentCard.self, from: data)
     }
 
     // MARK: - Message Operations
