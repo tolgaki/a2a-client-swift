@@ -101,6 +101,9 @@ public struct AgentCard: Codable, Sendable, Equatable {
         case skills
         case signatures
         case iconUrl
+        // v0.3 legacy keys
+        case url
+        case protocolVersion
     }
 
     public init(from decoder: Decoder) throws {
@@ -109,18 +112,24 @@ public struct AgentCard: Codable, Sendable, Equatable {
         self.name = try container.decode(String.self, forKey: .name)
         self.description = try container.decode(String.self, forKey: .description)
 
-        let interfaces = try container.decode([AgentInterface].self, forKey: .supportedInterfaces)
-        guard !interfaces.isEmpty else {
+        if let interfaces = try container.decodeIfPresent([AgentInterface].self, forKey: .supportedInterfaces),
+           !interfaces.isEmpty {
+            // v1.0 format: has supportedInterfaces array
+            self.supportedInterfaces = interfaces
+        } else if let url = try container.decodeIfPresent(String.self, forKey: .url) {
+            // v0.3 legacy format: has top-level "url" and "protocolVersion" fields
+            let protocolVersion = try container.decodeIfPresent(String.self, forKey: .protocolVersion) ?? "0.3"
+            self.supportedInterfaces = [AgentInterface(url: url, protocolBinding: AgentInterface.jsonRPC, protocolVersion: protocolVersion)]
+        } else {
             throw DecodingError.dataCorruptedError(
                 forKey: .supportedInterfaces,
                 in: container,
-                debugDescription: "AgentCard must have at least one supported interface per A2A spec"
+                debugDescription: "AgentCard must have 'supportedInterfaces' (v1.0) or 'url' (v0.3)"
             )
         }
-        self.supportedInterfaces = interfaces
 
         self.provider = try container.decodeIfPresent(AgentProvider.self, forKey: .provider)
-        self.version = try container.decode(String.self, forKey: .version)
+        self.version = try container.decodeIfPresent(String.self, forKey: .version) ?? "1.0"
         self.documentationUrl = try container.decodeIfPresent(String.self, forKey: .documentationUrl)
         self.capabilities = try container.decodeIfPresent(AgentCapabilities.self, forKey: .capabilities) ?? AgentCapabilities()
         self.securitySchemes = try container.decodeIfPresent([String: SecurityScheme].self, forKey: .securitySchemes)
@@ -130,6 +139,24 @@ public struct AgentCard: Codable, Sendable, Equatable {
         self.skills = try container.decodeIfPresent([AgentSkill].self, forKey: .skills) ?? []
         self.signatures = try container.decodeIfPresent([AgentCardSignature].self, forKey: .signatures)
         self.iconUrl = try container.decodeIfPresent(String.self, forKey: .iconUrl)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(description, forKey: .description)
+        try container.encode(supportedInterfaces, forKey: .supportedInterfaces)
+        try container.encodeIfPresent(provider, forKey: .provider)
+        try container.encode(version, forKey: .version)
+        try container.encodeIfPresent(documentationUrl, forKey: .documentationUrl)
+        try container.encodeIfPresent(capabilities, forKey: .capabilities)
+        try container.encodeIfPresent(securitySchemes, forKey: .securitySchemes)
+        try container.encodeIfPresent(securityRequirements, forKey: .securityRequirements)
+        try container.encodeIfPresent(defaultInputModes, forKey: .defaultInputModes)
+        try container.encodeIfPresent(defaultOutputModes, forKey: .defaultOutputModes)
+        try container.encodeIfPresent(skills, forKey: .skills)
+        try container.encodeIfPresent(signatures, forKey: .signatures)
+        try container.encodeIfPresent(iconUrl, forKey: .iconUrl)
     }
 }
 
@@ -399,8 +426,11 @@ public struct AgentCardSignature: Codable, Sendable, Equatable {
 // MARK: - Well-Known URI
 
 extension AgentCard {
-    /// The well-known URI path for agent card discovery.
+    /// The well-known URI path for agent card discovery (v1.0).
     public static let wellKnownPath = "/.well-known/agent.json"
+
+    /// The legacy well-known URI path for agent card discovery (v0.3).
+    public static let legacyWellKnownPath = "/.well-known/agent-card.json"
 
     /// Constructs the well-known agent card URL for a given base URL.
     public static func wellKnownURL(for baseURL: URL) -> URL {

@@ -62,7 +62,7 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
     ) async throws -> Response {
         let method = jsonRPCMethod(for: endpoint)
         let rpcRequest = JSONRPCRequest(
-            id: requestIdCounter.next(),
+            id: .int(requestIdCounter.next()),
             method: method,
             params: request
         )
@@ -91,7 +91,7 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
     ) async throws {
         let method = jsonRPCMethod(for: endpoint)
         let rpcRequest = JSONRPCRequest(
-            id: requestIdCounter.next(),
+            id: .int(requestIdCounter.next()),
             method: method,
             params: request
         )
@@ -114,7 +114,7 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
     ) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
         let method = jsonRPCMethod(for: endpoint)
         let rpcRequest = JSONRPCRequest(
-            id: requestIdCounter.next(),
+            id: .int(requestIdCounter.next()),
             method: method,
             params: request
         )
@@ -173,7 +173,7 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
         let method = jsonRPCMethod(for: endpoint)
         let rpcRequest = JSONRPCRequest(
-            id: requestIdCounter.next(),
+            id: .int(requestIdCounter.next()),
             method: method,
             params: params
         )
@@ -307,10 +307,33 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
 // MARK: - JSON-RPC Types
 
+/// JSON-RPC 2.0 id — can be a number or a string per the JSON-RPC 2.0 spec.
+enum JSONRPCId: Codable, Sendable {
+    case int(Int)
+    case string(String)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let v = try? container.decode(Int.self) {
+            self = .int(v)
+        } else {
+            self = .string(try container.decode(String.self))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .int(let v): try container.encode(v)
+        case .string(let v): try container.encode(v)
+        }
+    }
+}
+
 /// JSON-RPC 2.0 request structure.
 struct JSONRPCRequest<Params: Encodable>: Encodable {
     let jsonrpc: String = "2.0"
-    let id: Int
+    let id: JSONRPCId
     let method: String
     let params: Params
 }
@@ -318,7 +341,7 @@ struct JSONRPCRequest<Params: Encodable>: Encodable {
 /// JSON-RPC 2.0 response structure.
 struct JSONRPCResponse<Result: Decodable>: Decodable {
     let jsonrpc: String
-    let id: Int?
+    let id: JSONRPCId?
     let result: Result?
     let error: JSONRPCError?
 }
