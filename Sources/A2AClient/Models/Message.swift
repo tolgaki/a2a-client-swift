@@ -6,15 +6,43 @@
 import Foundation
 
 /// Represents the role of a message sender in the A2A protocol.
-public enum MessageRole: String, Codable, Sendable, Equatable {
+///
+/// Encoding uses v1.0 SCREAMING_SNAKE_CASE values (e.g., `ROLE_USER`).
+/// Decoding accepts both v1.0 and v0.3 lowercase values (e.g., `"user"`).
+public enum MessageRole: String, Sendable, Equatable {
     /// Unspecified role (default value).
-    case unspecified = "unspecified"
+    case unspecified = "ROLE_UNSPECIFIED"
 
     /// Message from the user/client.
-    case user = "user"
+    case user = "ROLE_USER"
 
     /// Message from the agent/server.
-    case agent = "agent"
+    case agent = "ROLE_AGENT"
+
+    /// Mapping from v0.3 lowercase values.
+    private static let v03Mapping: [String: MessageRole] = [
+        "unspecified": .unspecified,
+        "user": .user,
+        "agent": .agent,
+    ]
+}
+
+extension MessageRole: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+
+        if let role = MessageRole(rawValue: value) {
+            self = role
+        } else if let role = MessageRole.v03Mapping[value] {
+            self = role
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown MessageRole value: \(value)"
+            )
+        }
+    }
 }
 
 /// Represents a single communication turn between client and agent.

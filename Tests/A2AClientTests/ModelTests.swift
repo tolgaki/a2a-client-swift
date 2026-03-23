@@ -35,15 +35,49 @@ final class ModelTests: XCTestCase {
     }
 
     func testTaskState_AllStatesHaveCorrectRawValues() {
-        XCTAssertEqual(TaskState.unspecified.rawValue, "unspecified")
-        XCTAssertEqual(TaskState.submitted.rawValue, "submitted")
-        XCTAssertEqual(TaskState.working.rawValue, "working")
-        XCTAssertEqual(TaskState.completed.rawValue, "completed")
-        XCTAssertEqual(TaskState.failed.rawValue, "failed")
-        XCTAssertEqual(TaskState.cancelled.rawValue, "cancelled")
-        XCTAssertEqual(TaskState.inputRequired.rawValue, "input_required")
-        XCTAssertEqual(TaskState.rejected.rawValue, "rejected")
-        XCTAssertEqual(TaskState.authRequired.rawValue, "auth_required")
+        XCTAssertEqual(TaskState.unspecified.rawValue, "TASK_STATE_UNSPECIFIED")
+        XCTAssertEqual(TaskState.submitted.rawValue, "TASK_STATE_SUBMITTED")
+        XCTAssertEqual(TaskState.working.rawValue, "TASK_STATE_WORKING")
+        XCTAssertEqual(TaskState.completed.rawValue, "TASK_STATE_COMPLETED")
+        XCTAssertEqual(TaskState.failed.rawValue, "TASK_STATE_FAILED")
+        XCTAssertEqual(TaskState.cancelled.rawValue, "TASK_STATE_CANCELED")
+        XCTAssertEqual(TaskState.inputRequired.rawValue, "TASK_STATE_INPUT_REQUIRED")
+        XCTAssertEqual(TaskState.rejected.rawValue, "TASK_STATE_REJECTED")
+        XCTAssertEqual(TaskState.authRequired.rawValue, "TASK_STATE_AUTH_REQUIRED")
+    }
+
+    func testTaskState_DecodesV03LowercaseValues() throws {
+        let decoder = JSONDecoder()
+        for (json, expected) in [
+            ("\"working\"", TaskState.working),
+            ("\"completed\"", TaskState.completed),
+            ("\"failed\"", TaskState.failed),
+            ("\"cancelled\"", TaskState.cancelled),
+            ("\"canceled\"", TaskState.cancelled),
+            ("\"input_required\"", TaskState.inputRequired),
+        ] {
+            let decoded = try decoder.decode(TaskState.self, from: json.data(using: .utf8)!)
+            XCTAssertEqual(decoded, expected)
+        }
+    }
+
+    func testTaskState_DecodesV10ScreamingSnakeCaseValues() throws {
+        let decoder = JSONDecoder()
+        for (json, expected) in [
+            ("\"TASK_STATE_WORKING\"", TaskState.working),
+            ("\"TASK_STATE_COMPLETED\"", TaskState.completed),
+            ("\"TASK_STATE_CANCELED\"", TaskState.cancelled),
+        ] {
+            let decoded = try decoder.decode(TaskState.self, from: json.data(using: .utf8)!)
+            XCTAssertEqual(decoded, expected)
+        }
+    }
+
+    func testTaskState_EncodesAsV10Format() throws {
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(TaskState.completed)
+        let json = String(data: data, encoding: .utf8)!
+        XCTAssertEqual(json, "\"TASK_STATE_COMPLETED\"")
     }
 
     // MARK: - Part Tests
@@ -321,8 +355,18 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(decoded.role, .user)
     }
 
-    func testMessage_RoleIncludesUnspecified() {
-        XCTAssertEqual(MessageRole.unspecified.rawValue, "unspecified")
+    func testMessage_RoleValues() {
+        XCTAssertEqual(MessageRole.unspecified.rawValue, "ROLE_UNSPECIFIED")
+        XCTAssertEqual(MessageRole.user.rawValue, "ROLE_USER")
+        XCTAssertEqual(MessageRole.agent.rawValue, "ROLE_AGENT")
+    }
+
+    func testMessageRole_DecodesV03LowercaseValues() throws {
+        let decoder = JSONDecoder()
+        let userRole = try decoder.decode(MessageRole.self, from: "\"user\"".data(using: .utf8)!)
+        XCTAssertEqual(userRole, .user)
+        let agentRole = try decoder.decode(MessageRole.self, from: "\"agent\"".data(using: .utf8)!)
+        XCTAssertEqual(agentRole, .agent)
     }
 
     // MARK: - Task Tests

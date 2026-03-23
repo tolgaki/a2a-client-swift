@@ -21,7 +21,7 @@ final class ErrorTests: XCTestCase {
             message: nil
         )
         XCTAssertTrue(taskNotCancelable.localizedDescription.contains("task-456"))
-        XCTAssertTrue(taskNotCancelable.localizedDescription.contains("working"))
+        XCTAssertTrue(taskNotCancelable.localizedDescription.contains("TASK_STATE_WORKING"))
 
         let pushNotSupported = A2AError.pushNotificationNotSupported(message: nil)
         XCTAssertTrue(pushNotSupported.localizedDescription.contains("Push notifications"))

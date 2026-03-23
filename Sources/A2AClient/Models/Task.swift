@@ -232,3 +232,23 @@ public struct TaskListResponse: Codable, Sendable, Equatable {
         case totalSize
     }
 }
+
+// MARK: - CancelTaskRequest
+
+/// Parameters for cancelling a task.
+public struct CancelTaskRequest: Codable, Sendable, Equatable {
+    /// Optional tenant identifier.
+    public let tenant: String?
+
+    /// The task identifier.
+    public let id: String
+
+    /// Optional metadata for the cancel request.
+    public let metadata: [String: AnyCodable]?
+
+    public init(tenant: String? = nil, id: String, metadata: [String: AnyCodable]? = nil) {
+        self.tenant = tenant
+        self.id = id
+        self.metadata = metadata
+    }
+}

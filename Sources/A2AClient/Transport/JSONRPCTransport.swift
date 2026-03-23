@@ -357,43 +357,72 @@ struct JSONRPCError: Decodable {
     }
 }
 
-/// Decodes a streaming event using the `kind` discriminator field.
+/// Decodes a streaming event from a JSON-RPC result.
 ///
-/// The JSON-RPC streaming binding wraps each event in a JSON-RPC response.
-/// The `kind` field identifies the event type:
-/// - `"task"` → A2ATask
-/// - `"message"` → Message
-/// - `"status-update"` → TaskStatusUpdateEvent
-/// - `"artifact-update"` → TaskArtifactUpdateEvent
+/// Supports two formats:
+/// - **v1.0 (field-presence)**: Result has a `task`, `message`, `statusUpdate`,
+///   or `artifactUpdate` key wrapping the event object.
+/// - **v0.3 (kind-based)**: Result has a `kind` discriminator field at the top
+///   level with the event fields alongside it.
 struct StreamEventResult: Decodable {
     let event: StreamingEvent
 
     private enum CodingKeys: String, CodingKey {
+        // v1.0 field-presence keys
+        case task
+        case message
+        case statusUpdate
+        case artifactUpdate
+        // v0.3 kind-based key
         case kind
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try container.decode(String.self, forKey: .kind)
 
-        switch kind {
-        case "task":
-            let task = try A2ATask(from: decoder)
+        // v1.0: field-presence oneofs (result wraps the event in a named key)
+        if container.contains(.task) {
+            let task = try container.decode(A2ATask.self, forKey: .task)
             self.event = .task(task)
-        case "message":
-            let message = try Message(from: decoder)
+        } else if container.contains(.message) {
+            let message = try container.decode(Message.self, forKey: .message)
             self.event = .message(message)
-        case "status-update":
-            let update = try TaskStatusUpdateEvent(from: decoder)
+        } else if container.contains(.statusUpdate) {
+            let update = try container.decode(TaskStatusUpdateEvent.self, forKey: .statusUpdate)
             self.event = .taskStatusUpdate(update)
-        case "artifact-update":
-            let update = try TaskArtifactUpdateEvent(from: decoder)
+        } else if container.contains(.artifactUpdate) {
+            let update = try container.decode(TaskArtifactUpdateEvent.self, forKey: .artifactUpdate)
             self.event = .taskArtifactUpdate(update)
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: .kind,
-                in: container,
-                debugDescription: "Unknown streaming event kind: \(kind)"
+        }
+        // v0.3: kind-based discrimination (event fields are at the top level)
+        else if let kind = try container.decodeIfPresent(String.self, forKey: .kind) {
+            switch kind {
+            case "task":
+                let task = try A2ATask(from: decoder)
+                self.event = .task(task)
+            case "message":
+                let message = try Message(from: decoder)
+                self.event = .message(message)
+            case "status-update":
+                let update = try TaskStatusUpdateEvent(from: decoder)
+                self.event = .taskStatusUpdate(update)
+            case "artifact-update":
+                let update = try TaskArtifactUpdateEvent(from: decoder)
+                self.event = .taskArtifactUpdate(update)
+            default:
+                throw DecodingError.dataCorrupted(
+                    DecodingError.Context(
+                        codingPath: container.codingPath,
+                        debugDescription: "Unknown streaming event kind: \(kind)"
+                    )
+                )
+            }
+        } else {
+            throw DecodingError.dataCorrupted(
+                DecodingError.Context(
+                    codingPath: container.codingPath,
+                    debugDescription: "Streaming event has neither field-presence keys nor kind discriminator"
+                )
             )
         }
     }

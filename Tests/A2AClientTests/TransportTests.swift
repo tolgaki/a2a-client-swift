@@ -160,7 +160,7 @@ final class ClientOperationTests: XCTestCase {
         {
             "id": "task-1",
             "contextId": "ctx-1",
-            "status": {"state": "working"}
+            "status": {"state": "TASK_STATE_WORKING"}
         }
         """
         let data = json.data(using: .utf8)!
@@ -176,7 +176,7 @@ final class ClientOperationTests: XCTestCase {
         let json = """
         {
             "messageId": "msg-1",
-            "role": "agent",
+            "role": "ROLE_AGENT",
             "parts": [{"kind": "text", "text": "Hello"}]
         }
         """
@@ -195,7 +195,7 @@ final class ClientOperationTests: XCTestCase {
         {
             "id": "task-1",
             "contextId": "ctx-1",
-            "status": {"state": "completed"}
+            "status": {"state": "TASK_STATE_COMPLETED"}
         }
         """
         let taskData = taskJson.data(using: .utf8)!
@@ -207,7 +207,7 @@ final class ClientOperationTests: XCTestCase {
         let messageJson = """
         {
             "messageId": "msg-1",
-            "role": "user",
+            "role": "ROLE_USER",
             "parts": [{"kind": "text", "text": "test"}]
         }
         """
@@ -246,12 +246,12 @@ final class ClientOperationTests: XCTestCase {
     }
 
     func testEndpoint_JSONRPCMethodNames() {
-        XCTAssertEqual(A2AEndpoint.sendMessage.jsonRPCMethod, "message/send")
-        XCTAssertEqual(A2AEndpoint.sendStreamingMessage.jsonRPCMethod, "message/stream")
-        XCTAssertEqual(A2AEndpoint.listTasks.jsonRPCMethod, "tasks/list")
-        XCTAssertEqual(A2AEndpoint.getTask(id: "1").jsonRPCMethod, "tasks/get")
-        XCTAssertEqual(A2AEndpoint.cancelTask(id: "1").jsonRPCMethod, "tasks/cancel")
-        XCTAssertEqual(A2AEndpoint.getExtendedAgentCard.jsonRPCMethod, "agent/authenticatedExtendedCard")
+        XCTAssertEqual(A2AEndpoint.sendMessage.jsonRPCMethod, "SendMessage")
+        XCTAssertEqual(A2AEndpoint.sendStreamingMessage.jsonRPCMethod, "SendStreamingMessage")
+        XCTAssertEqual(A2AEndpoint.listTasks.jsonRPCMethod, "ListTasks")
+        XCTAssertEqual(A2AEndpoint.getTask(id: "1").jsonRPCMethod, "GetTask")
+        XCTAssertEqual(A2AEndpoint.cancelTask(id: "1").jsonRPCMethod, "CancelTask")
+        XCTAssertEqual(A2AEndpoint.getExtendedAgentCard.jsonRPCMethod, "GetExtendedAgentCard")
     }
 
     // MARK: - TaskQueryParams Query Items Tests

@@ -265,10 +265,12 @@ public final class A2AClient: Sendable {
 
     /// Cancels a task.
     ///
-    /// - Parameter taskId: The task ID to cancel.
+    /// - Parameters:
+    ///   - taskId: The task ID to cancel.
+    ///   - metadata: Optional metadata for the cancel request.
     /// - Returns: The updated task.
-    public func cancelTask(_ taskId: String) async throws -> A2ATask {
-        let request = TaskIdParams(id: taskId)
+    public func cancelTask(_ taskId: String, metadata: [String: AnyCodable]? = nil) async throws -> A2ATask {
+        let request = CancelTaskRequest(id: taskId, metadata: metadata)
         return try await transport.send(
             request: request,
             to: .cancelTask(id: taskId),

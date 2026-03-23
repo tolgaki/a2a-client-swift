@@ -270,7 +270,7 @@ public struct A2AErrorResponse: Codable, Sendable, Equatable {
         case JSONRPCErrorCode.taskNotCancelable.rawValue:
             let taskId = extractString("task_id") ?? extractString("taskId") ?? ""
             let stateStr = extractString("state") ?? "working"
-            let state = TaskState(rawValue: stateStr) ?? .working
+            let state = TaskState(string: stateStr) ?? .working
             return .taskNotCancelable(taskId: taskId, state: state, message: message)
         case JSONRPCErrorCode.pushNotificationNotSupported.rawValue:
             return .pushNotificationNotSupported(message: message)

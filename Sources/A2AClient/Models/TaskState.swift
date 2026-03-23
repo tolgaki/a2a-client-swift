@@ -9,33 +9,36 @@ import Foundation
 ///
 /// Tasks progress through a defined lifecycle, transitioning between states
 /// based on agent processing and client interactions.
-public enum TaskState: String, Codable, Sendable, Equatable, CaseIterable {
+///
+/// Encoding uses v1.0 SCREAMING_SNAKE_CASE values (e.g., `TASK_STATE_COMPLETED`).
+/// Decoding accepts both v1.0 and v0.3 lowercase values (e.g., `"completed"`).
+public enum TaskState: String, Sendable, Equatable, CaseIterable {
     /// Unspecified state (default value).
-    case unspecified = "unspecified"
+    case unspecified = "TASK_STATE_UNSPECIFIED"
 
     /// Task has been received but processing has not yet begun.
-    case submitted = "submitted"
+    case submitted = "TASK_STATE_SUBMITTED"
 
     /// Task is actively being processed by the agent.
-    case working = "working"
+    case working = "TASK_STATE_WORKING"
 
     /// Task completed successfully. This is a terminal state.
-    case completed = "completed"
+    case completed = "TASK_STATE_COMPLETED"
 
     /// Task failed due to an error. This is a terminal state.
-    case failed = "failed"
+    case failed = "TASK_STATE_FAILED"
 
     /// Task was cancelled by the client. This is a terminal state.
-    case cancelled = "cancelled"
+    case cancelled = "TASK_STATE_CANCELED"
 
     /// Agent requires additional input from the client to proceed.
-    case inputRequired = "input_required"
+    case inputRequired = "TASK_STATE_INPUT_REQUIRED"
 
     /// Task was rejected by the server. This is a terminal state.
-    case rejected = "rejected"
+    case rejected = "TASK_STATE_REJECTED"
 
     /// Task requires authentication to proceed.
-    case authRequired = "auth_required"
+    case authRequired = "TASK_STATE_AUTH_REQUIRED"
 
     /// Whether this state represents a terminal (final) state.
     ///
@@ -56,6 +59,53 @@ public enum TaskState: String, Codable, Sendable, Equatable, CaseIterable {
             return true
         case .unspecified, .submitted, .working, .completed, .failed, .cancelled, .rejected:
             return false
+        }
+    }
+
+    // MARK: - v0.3 Backward Compatibility
+
+    /// Mapping from v0.3 lowercase values to TaskState cases.
+    private static let v03Mapping: [String: TaskState] = [
+        "unspecified": .unspecified,
+        "submitted": .submitted,
+        "working": .working,
+        "completed": .completed,
+        "failed": .failed,
+        "cancelled": .cancelled,
+        "canceled": .cancelled,
+        "input_required": .inputRequired,
+        "rejected": .rejected,
+        "auth_required": .authRequired,
+    ]
+
+    /// Creates a TaskState from a string, accepting both v1.0 and v0.3 formats.
+    public init?(string: String) {
+        if let state = TaskState(rawValue: string) {
+            self = state
+        } else if let state = TaskState.v03Mapping[string] {
+            self = state
+        } else {
+            return nil
+        }
+    }
+}
+
+// MARK: - Codable
+
+extension TaskState: Codable {
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+
+        if let state = TaskState(rawValue: value) {
+            self = state
+        } else if let state = TaskState.v03Mapping[value] {
+            self = state
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unknown TaskState value: \(value)"
+            )
         }
     }
 }
