@@ -108,6 +108,31 @@ extension TaskState: Codable {
             )
         }
     }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        // Encode as v0.3 lowercase when targeting a v0.3 server
+        if let version = encoder.userInfo[a2aProtocolVersionKey] as? String,
+           version.hasPrefix("0.") {
+            let v03Value = Self.v10ToV03[self] ?? rawValue
+            try container.encode(v03Value)
+        } else {
+            try container.encode(rawValue)
+        }
+    }
+
+    /// Mapping from TaskState cases to v0.3 lowercase values.
+    private static let v10ToV03: [TaskState: String] = [
+        .unspecified: "unspecified",
+        .submitted: "submitted",
+        .working: "working",
+        .completed: "completed",
+        .failed: "failed",
+        .cancelled: "cancelled",
+        .inputRequired: "input_required",
+        .rejected: "rejected",
+        .authRequired: "auth_required",
+    ]
 }
 
 /// Represents the status of a task including state, optional message, and timestamp.

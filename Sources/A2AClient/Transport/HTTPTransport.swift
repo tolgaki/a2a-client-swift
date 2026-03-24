@@ -37,6 +37,7 @@ public final class HTTPTransport: A2ATransport, Sendable {
         if serviceParameters.jsonKeyCasing == .snakeCase {
             encoder.keyEncodingStrategy = .convertToSnakeCase
         }
+        encoder.userInfo[a2aProtocolVersionKey] = serviceParameters.version
         return encoder
     }
 

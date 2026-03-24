@@ -41,6 +41,7 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
         if serviceParameters.jsonKeyCasing == .snakeCase {
             encoder.keyEncodingStrategy = .convertToSnakeCase
         }
+        encoder.userInfo[a2aProtocolVersionKey] = serviceParameters.version
         return encoder
     }
 
@@ -284,7 +285,11 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
     }
 
     private func jsonRPCMethod(for endpoint: A2AEndpoint) -> String {
-        // Use the method name from the endpoint definition if available
+        // Use v0.3 method name for v0.3 servers
+        if serviceParameters.version.hasPrefix("0."), let v03Method = endpoint.v03JsonRPCMethod {
+            return v03Method
+        }
+        // Use v1.0 PascalCase method name
         if let method = endpoint.jsonRPCMethod {
             return method
         }

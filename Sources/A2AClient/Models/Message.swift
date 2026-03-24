@@ -43,6 +43,24 @@ extension MessageRole: Codable {
             )
         }
     }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        if let version = encoder.userInfo[a2aProtocolVersionKey] as? String,
+           version.hasPrefix("0.") {
+            let v03Value = Self.v10ToV03[self] ?? rawValue
+            try container.encode(v03Value)
+        } else {
+            try container.encode(rawValue)
+        }
+    }
+
+    /// Mapping from MessageRole cases to v0.3 lowercase values.
+    private static let v10ToV03: [MessageRole: String] = [
+        .unspecified: "unspecified",
+        .user: "user",
+        .agent: "agent",
+    ]
 }
 
 /// Represents a single communication turn between client and agent.
