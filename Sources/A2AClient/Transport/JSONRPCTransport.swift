@@ -238,6 +238,14 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Accept")
         }
 
+        // Copy httpAdditionalHeaders from the configured session — streaming uses
+        // URLSession.shared, so session-level headers must be applied per-request.
+        if let additionalHeaders = session.configuration.httpAdditionalHeaders as? [String: String] {
+            for (key, value) in additionalHeaders {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
+
         // Add service parameter headers
         for (key, value) in serviceParameters.headers {
             request.setValue(value, forHTTPHeaderField: key)
