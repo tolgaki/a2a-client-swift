@@ -167,7 +167,14 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
         var params: [String: AnyCodable] = [:]
         for item in queryItems {
             if let value = item.value {
-                params[item.name] = AnyCodable(value)
+                // Try to preserve numeric types for JSON-RPC params
+                if let intVal = Int(value) {
+                    params[item.name] = AnyCodable(intVal)
+                } else if let boolVal = Bool(value) {
+                    params[item.name] = AnyCodable(boolVal)
+                } else {
+                    params[item.name] = AnyCodable(value)
+                }
             }
         }
 

@@ -209,6 +209,8 @@ public final class A2AClient: Sendable {
     /// - Returns: The task.
     public func getTask(_ taskId: String, historyLength: Int? = nil) async throws -> A2ATask {
         var queryItems: [URLQueryItem] = []
+        // id must be in queryItems for JSON-RPC (converted to params)
+        queryItems.append(URLQueryItem(name: "id", value: taskId))
         if let historyLength = historyLength {
             queryItems.append(URLQueryItem(name: "historyLength", value: String(historyLength)))
         }
