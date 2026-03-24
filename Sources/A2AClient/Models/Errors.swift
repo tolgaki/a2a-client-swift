@@ -241,7 +241,11 @@ public struct A2AErrorResponse: Codable, Sendable, Equatable {
         if let anyCodable = value as? AnyCodable {
             return anyCodable.stringValue
         }
-        return nil
+        // Handle numeric values that may be encoded as strings
+        if let intValue = value as? Int {
+            return String(intValue)
+        }
+        return String(describing: value)
     }
 
     /// Extracts a string array from the error data dictionary.

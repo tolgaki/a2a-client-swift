@@ -273,11 +273,16 @@ public final class A2AClient: Sendable {
     /// - Returns: The updated task.
     public func cancelTask(_ taskId: String, metadata: [String: AnyCodable]? = nil) async throws -> A2ATask {
         let request = CancelTaskRequest(id: taskId, metadata: metadata)
-        return try await transport.send(
-            request: request,
-            to: .cancelTask(id: taskId),
-            responseType: A2ATask.self
-        )
+        do {
+            return try await transport.send(
+                request: request,
+                to: .cancelTask(id: taskId),
+                responseType: A2ATask.self
+            )
+        } catch A2AError.taskNotCancelable(let tid, let state, let msg) where tid.isEmpty {
+            // Server error data may not include taskId — fill it from the request
+            throw A2AError.taskNotCancelable(taskId: taskId, state: state, message: msg)
+        }
     }
 
     /// Subscribes to updates for an existing task.
