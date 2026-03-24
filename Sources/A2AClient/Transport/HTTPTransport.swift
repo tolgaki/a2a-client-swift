@@ -291,8 +291,12 @@ public final class HTTPTransport: A2ATransport, Sendable {
             let message = try decoder.decode(Message.self, from: data)
             return .message(message)
         default:
-            // Try to auto-detect the event type for backward compatibility
-            // or when event type header is missing
+            // No event type header — try field-presence/kind-based decoding
+            // (v1.0 uses field-presence: {"statusUpdate":{...}}, v0.3 uses kind)
+            if let result = try? decoder.decode(StreamEventResult.self, from: data) {
+                return result.event
+            }
+            // Fallback: try direct decoding of each type
             if let update = try? decoder.decode(TaskStatusUpdateEvent.self, from: data) {
                 return .taskStatusUpdate(update)
             } else if let update = try? decoder.decode(TaskArtifactUpdateEvent.self, from: data) {
