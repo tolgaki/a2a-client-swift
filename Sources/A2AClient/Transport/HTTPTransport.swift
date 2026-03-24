@@ -84,15 +84,15 @@ public final class HTTPTransport: A2ATransport, Sendable {
     ) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
         let urlRequest = try await buildRequest(for: endpoint, body: request, acceptSSE: true)
 
+        // Establish the HTTP connection BEFORE creating the AsyncThrowingStream.
+        // This avoids a race where the unstructured Task inside the stream closure
+        // may not start (or bytes(for:) may not return) before the consumer iterates.
+        let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
+        try validateResponse(response, data: nil)
+
         return AsyncThrowingStream { continuation in
             let streamTask = _Concurrency.Task {
                 do {
-                    // Use URLSession.shared for streaming — custom URLSession(configuration:)
-                    // can buffer the entire response instead of delivering bytes incrementally.
-                    // Authentication is applied per-request, so .shared works correctly.
-                    let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
-                    try validateResponse(response, data: nil)
-
                     let parser = SSEParser()
 
                     for try await line in bytes.lines {

@@ -121,15 +121,15 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
         let urlRequest = try await buildRequest(body: rpcRequest, acceptSSE: true)
 
+        // Establish the HTTP connection BEFORE creating the AsyncThrowingStream.
+        // This avoids a race where the unstructured Task inside the stream closure
+        // may not start (or bytes(for:) may not return) before the consumer iterates.
+        let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
+        try validateHTTPResponse(response)
+
         return AsyncThrowingStream { continuation in
             let streamTask = _Concurrency.Task {
                 do {
-                    // Use URLSession.shared for streaming — custom URLSession(configuration:)
-                    // can buffer the entire response instead of delivering bytes incrementally.
-                    // Authentication is applied per-request, so .shared works correctly.
-                    let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
-                    try validateHTTPResponse(response)
-
                     let parser = SSEParser()
 
                     for try await line in bytes.lines {
