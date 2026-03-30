@@ -143,13 +143,13 @@ public struct TaskStatus: Codable, Sendable, Equatable {
     /// Optional human-readable message providing additional context about the status.
     public let message: Message?
 
-    /// Timestamp when this status was set (ISO 8601 format).
-    public let timestamp: Date?
+    /// Timestamp when this status was set (ISO 8601 format string).
+    public let timestamp: String?
 
     public init(
         state: TaskState,
         message: Message? = nil,
-        timestamp: Date? = nil
+        timestamp: String? = nil
     ) {
         self.state = state
         self.message = message
