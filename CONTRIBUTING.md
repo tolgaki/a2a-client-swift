@@ -15,7 +15,7 @@ Thank you for your interest in contributing to A2AClient! This document provides
 
 ## Code of Conduct
 
-This project follows a standard code of conduct. Please be respectful and constructive in all interactions. We are committed to providing a welcoming and inclusive environment for everyone.
+This project has adopted the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) (v2.1) as its code of conduct. Please be respectful and constructive in all interactions. We are committed to providing a welcoming and inclusive environment for everyone.
 
 ## Getting Started
 
@@ -60,23 +60,13 @@ swift test
 
 ### Project Structure
 
-```
-a2a-client-swift/
-├── Package.swift              # Package manifest
-├── Sources/
-│   └── A2AClient/
-│       ├── A2AClientModule.swift
-│       ├── Client/            # Main client implementation
-│       ├── Models/            # Data models
-│       ├── Transport/         # Transport layer
-│       ├── Authentication/    # Auth providers
-│       ├── Streaming/         # Streaming support
-│       └── Extensions/        # Utility extensions
-└── Tests/
-    └── A2AClientTests/        # Unit tests
-```
+The main source code lives under `Sources/A2AClient/` and tests under `Tests/A2AClientTests/`. Browse the repository for the current layout — see [DESIGN.md](DESIGN.md) for architecture context.
 
 ## Making Changes
+
+### Discuss Before You Start
+
+For significant changes (new features, architectural changes, adding build system support like CocoaPods, etc.), please **open an issue first** to discuss your approach before submitting a PR. This helps avoid wasted effort and ensures alignment on direction.
 
 ### Branch Strategy
 
@@ -177,7 +167,7 @@ public func sendMessage(_ message: Message) async throws -> SendMessageResponse
 - Maximum line length of 120 characters
 - No trailing whitespace
 
-Consider using SwiftFormat or SwiftLint for consistency.
+We use [SwiftFormat](https://github.com/nicklockwood/SwiftFormat) to enforce consistent formatting. Please run `swiftformat .` before submitting a PR.
 
 ## Testing
 
@@ -269,7 +259,10 @@ final class MessageTests: XCTestCase {
    - Testing performed
    - Screenshots if applicable
 
-4. Wait for CI checks to pass
+4. Wait for CI checks to pass:
+   - `swift build` — the project compiles without errors
+   - `swift test` — all tests pass
+   - SwiftFormat — code formatting is consistent
 
 5. Address review feedback
 
@@ -361,6 +354,24 @@ struct MockTransport: A2ATransport {
     }
 }
 ```
+
+## Developer Certificate of Origin (DCO)
+
+By contributing to this project, you certify that your contribution is in accordance with the [Developer Certificate of Origin](https://developercertificate.org/) (DCO). This means you have the right to submit the work under the project's Apache 2.0 license.
+
+Please sign off your commits by adding a `Signed-off-by` line:
+
+```bash
+git commit -s -m "feat(client): add retry policy"
+```
+
+This adds a line like:
+
+```
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+All commits in a PR must be signed off. If you forget, you can amend with `git commit --amend -s`.
 
 ## Getting Help
 
