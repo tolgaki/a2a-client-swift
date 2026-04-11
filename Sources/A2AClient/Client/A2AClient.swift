@@ -85,9 +85,11 @@ public final class A2AClient: Sendable {
 
     /// Fetches the agent card from a specific URL.
     ///
-    /// If the URL ends with `agent.json` (v1.0 well-known path) and the fetch
-    /// fails with a non-200 status, this method automatically retries with the
-    /// legacy `agent-card.json` path (v0.3) for backward compatibility.
+    /// If the fetch fails and the URL points at the v1.0 well-known path
+    /// (`agent.json`), this method automatically retries the v0.3 legacy path
+    /// (`agent-card.json`). The reverse fallback (v0.3 → v1.0) is also
+    /// attempted so that callers holding a legacy URL still reach a v1.0 card
+    /// when available.
     public static func fetchAgentCard(from url: URL) async throws -> AgentCard {
         let session = URLSession.shared
 
@@ -102,30 +104,51 @@ public final class A2AClient: Sendable {
             }
 
             guard httpResponse.statusCode == 200 else {
-                throw A2AError.invalidResponse(message: "HTTP \(httpResponse.statusCode)")
+                throw A2AError.invalidResponse(message: "HTTP \(httpResponse.statusCode) fetching agent card at \(fetchURL.absoluteString)")
             }
 
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode(AgentCard.self, from: data)
+            do {
+                return try decoder.decode(AgentCard.self, from: data)
+            } catch {
+                throw A2AError.invalidResponse(
+                    message: "Failed to decode agent card at \(fetchURL.absoluteString): \(error)"
+                )
+            }
         }
 
         do {
             return try await fetch(from: url)
         } catch {
-            // If the URL uses the v1.0 well-known path (agent.json), try the
-            // legacy v0.3 path (agent-card.json) as a fallback.
-            let urlString = url.absoluteString
-            if urlString.hasSuffix("/agent.json") {
-                let legacyURL = URL(string: urlString.replacingOccurrences(
-                    of: "/agent.json",
-                    with: "/agent-card.json",
-                    range: urlString.range(of: "/agent.json", options: .backwards)
-                ))!
-                return try await fetch(from: legacyURL)
+            if let fallback = legacyAgentCardURL(for: url) {
+                do {
+                    return try await fetch(from: fallback)
+                } catch {
+                    // Fall through and throw the original error so the caller
+                    // sees the failure on the path they asked for.
+                }
             }
             throw error
         }
+    }
+
+    /// Returns the cross-version well-known fallback URL, or nil if the
+    /// supplied URL doesn't look like a well-known agent card path.
+    private static func legacyAgentCardURL(for url: URL) -> URL? {
+        let urlString = url.absoluteString
+        let replacements: [(String, String)] = [
+            ("/agent.json", "/agent-card.json"),     // v1.0 -> v0.3
+            ("/agent-card.json", "/agent.json"),     // v0.3 -> v1.0
+        ]
+        for (suffix, replacement) in replacements {
+            guard urlString.hasSuffix(suffix),
+                  let range = urlString.range(of: suffix, options: .backwards) else { continue }
+            if let fallback = URL(string: urlString.replacingOccurrences(of: suffix, with: replacement, range: range)) {
+                return fallback
+            }
+        }
+        return nil
     }
 
     // MARK: - Message Operations

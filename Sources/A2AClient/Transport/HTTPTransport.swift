@@ -61,12 +61,7 @@ public final class HTTPTransport: A2ATransport, Sendable {
         let (data, response) = try await session.data(for: urlRequest)
 
         try validateResponse(response, data: data)
-
-        do {
-            return try makeDecoder().decode(Response.self, from: data)
-        } catch {
-            throw A2AError.encodingError(underlying: error)
-        }
+        return try decodeResponse(Response.self, from: data)
     }
 
     public func send<Request: Encodable>(
@@ -156,12 +151,7 @@ public final class HTTPTransport: A2ATransport, Sendable {
 
         let (data, response) = try await session.data(for: request)
         try validateResponse(response, data: data)
-
-        do {
-            return try makeDecoder().decode(Response.self, from: data)
-        } catch {
-            throw A2AError.encodingError(underlying: error)
-        }
+        return try decodeResponse(Response.self, from: data)
     }
 
     public func fetch<Response: Decodable>(
@@ -178,15 +168,25 @@ public final class HTTPTransport: A2ATransport, Sendable {
 
         let (data, response) = try await session.data(for: urlRequest)
         try validateResponse(response, data: data)
-
-        do {
-            return try makeDecoder().decode(Response.self, from: data)
-        } catch {
-            throw A2AError.encodingError(underlying: error)
-        }
+        return try decodeResponse(Response.self, from: data)
     }
 
     // MARK: - Private Helpers
+
+    /// Decodes a successful (2xx) response body, surfacing decode failures as
+    /// an ``A2AError/invalidResponse`` with the underlying error and a short
+    /// body snippet. ``A2AError/encodingError`` is reserved for errors on the
+    /// request side.
+    private func decodeResponse<Response: Decodable>(_ type: Response.Type, from data: Data) throws -> Response {
+        do {
+            return try makeDecoder().decode(Response.self, from: data)
+        } catch {
+            let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"
+            throw A2AError.invalidResponse(
+                message: "Failed to decode response body as \(Response.self): \(error). Body: \(snippet)"
+            )
+        }
+    }
 
     private func buildRequest<Body: Encodable>(
         for endpoint: A2AEndpoint,
@@ -283,39 +283,52 @@ public final class HTTPTransport: A2ATransport, Sendable {
             throw A2AError.invalidResponse(message: "Invalid SSE data encoding")
         }
 
-        let decoder = makeDecoder()
-
         // Try to decode as different event types based on event type
         switch sseEvent.event {
         case "status":
-            let update = try decoder.decode(TaskStatusUpdateEvent.self, from: data)
-            return .taskStatusUpdate(update)
+            return .taskStatusUpdate(try makeDecoder().decode(TaskStatusUpdateEvent.self, from: data))
         case "artifact":
-            let update = try decoder.decode(TaskArtifactUpdateEvent.self, from: data)
-            return .taskArtifactUpdate(update)
+            return .taskArtifactUpdate(try makeDecoder().decode(TaskArtifactUpdateEvent.self, from: data))
         case "task":
-            let task = try decoder.decode(A2ATask.self, from: data)
-            return .task(task)
+            return .task(try makeDecoder().decode(A2ATask.self, from: data))
         case "message":
-            let message = try decoder.decode(Message.self, from: data)
-            return .message(message)
+            return .message(try makeDecoder().decode(Message.self, from: data))
         default:
             // No event type header — try field-presence/kind-based decoding
-            // (v1.0 uses field-presence: {"statusUpdate":{...}}, v0.3 uses kind)
-            if let result = try? decoder.decode(StreamEventResult.self, from: data) {
-                return result.event
+            // (v1.0 uses field-presence: {"statusUpdate":{...}}, v0.3 uses kind).
+            // Servers vary on key casing, so retry with snake_case conversion
+            // when the default strategy fails. Keep the first error for
+            // diagnosis.
+            var firstError: Error?
+
+            for snakeCase in [false, true] {
+                let decoder = makeDecoder()
+                if snakeCase {
+                    decoder.keyDecodingStrategy = .convertFromSnakeCase
+                }
+
+                do {
+                    return try decoder.decode(StreamEventResult.self, from: data).event
+                } catch {
+                    if firstError == nil { firstError = error }
+                }
+
+                if let update = try? decoder.decode(TaskStatusUpdateEvent.self, from: data) {
+                    return .taskStatusUpdate(update)
+                } else if let update = try? decoder.decode(TaskArtifactUpdateEvent.self, from: data) {
+                    return .taskArtifactUpdate(update)
+                } else if let task = try? decoder.decode(A2ATask.self, from: data) {
+                    return .task(task)
+                } else if let message = try? decoder.decode(Message.self, from: data) {
+                    return .message(message)
+                }
             }
-            // Fallback: try direct decoding of each type
-            if let update = try? decoder.decode(TaskStatusUpdateEvent.self, from: data) {
-                return .taskStatusUpdate(update)
-            } else if let update = try? decoder.decode(TaskArtifactUpdateEvent.self, from: data) {
-                return .taskArtifactUpdate(update)
-            } else if let task = try? decoder.decode(A2ATask.self, from: data) {
-                return .task(task)
-            } else if let message = try? decoder.decode(Message.self, from: data) {
-                return .message(message)
-            }
-            throw A2AError.invalidResponse(message: "Unknown or malformed event type: \(sseEvent.event ?? "none")")
+
+            let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"
+            let detail = firstError.map { " Underlying error: \($0)." } ?? ""
+            throw A2AError.invalidResponse(
+                message: "Unable to decode streaming event (sse event: \(sseEvent.event ?? "none")).\(detail) Body: \(snippet)"
+            )
         }
     }
 }

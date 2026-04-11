@@ -64,6 +64,41 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         case flows
         case openIdConnectUrl
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.description = try container.decodeIfPresent(String.self, forKey: .description)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+        self.`in` = try container.decodeIfPresent(APIKeyLocation.self, forKey: .in)
+        self.scheme = try container.decodeIfPresent(String.self, forKey: .scheme)
+        self.bearerFormat = try container.decodeIfPresent(String.self, forKey: .bearerFormat)
+        self.flows = try container.decodeIfPresent(OAuthFlows.self, forKey: .flows)
+        self.openIdConnectUrl = try container.decodeIfPresent(String.self, forKey: .openIdConnectUrl)
+
+        // `type` is the JSON-Schema discriminator but some servers (notably .NET)
+        // omit it when it can be inferred from the sibling fields. Accept the
+        // explicit value when present; otherwise infer from field presence.
+        if let explicit = try container.decodeIfPresent(SecuritySchemeType.self, forKey: .type) {
+            self.type = explicit
+        } else if self.flows != nil {
+            self.type = .oauth2
+        } else if self.openIdConnectUrl != nil {
+            self.type = .openIdConnect
+        } else if self.scheme != nil {
+            self.type = .http
+        } else if self.name != nil || self.`in` != nil {
+            self.type = .apiKey
+        } else {
+            throw DecodingError.keyNotFound(
+                CodingKeys.type,
+                DecodingError.Context(
+                    codingPath: container.codingPath,
+                    debugDescription: "SecurityScheme missing `type` and no sibling field permitted inference"
+                )
+            )
+        }
+    }
 }
 
 // MARK: - SecuritySchemeType

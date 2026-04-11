@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.15] - 2026-04-11
+
+### Fixed
+
+- **REST binding URLs missing `/v1/` prefix** — All REST endpoint paths now include the spec-required `/v1/` prefix (e.g. `/v1/message:send`, `/v1/tasks/{id}`). Previously every REST call returned HTTP 404 against spec-compliant servers.
+- **AgentCard decoding: `SecurityScheme` now infers `type`** — Custom decoder accepts security scheme objects that omit the `type` discriminator (e.g. the .NET server) and infers the type from sibling fields (`flows`→`oauth2`, `openIdConnectUrl`→`openIdConnect`, `scheme`→`http`, `name`/`in`→`apiKey`).
+- **Streaming decoder now surfaces real errors** — Previously every decode failure was collapsed to "Unknown streaming event format". The decoder now retries with snake_case key conversion (for Python-style servers) and surfaces the underlying `DecodingError` along with a body snippet when every attempt fails.
+- **HTTP response decode errors** — Decode failures on a 2xx response are now reported as `A2AError.invalidResponse` with a body snippet instead of `A2AError.encodingError`, which is now reserved for request-side failures.
+- **`taskNotCancelable` state fallback** — When the server error payload omits a `state` field, the SDK no longer fabricates `.working`; it reports `.unspecified` so the value isn't misread as a client-side decision.
+- **Agent card well-known fallback** — `fetchAgentCard(from:)` now also falls back from `/agent-card.json` → `/agent.json`, not only the v1.0→v0.3 direction.
+
+### Added
+
+- **Clear error for v0.3 + REST** — `A2AClientConfiguration.from(agentCard:)` throws `versionNotSupported` when a v0.3 card is paired with the HTTP+JSON binding, instead of letting every call fail with HTTP 404.
+
 ## [1.0.5] - 2026-03-21
 
 ### Fixed
@@ -201,6 +216,7 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
+[1.0.15]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.15
 [1.0.5]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.5
 [1.0.4]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.4
 [1.0.3]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.3

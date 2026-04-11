@@ -82,6 +82,17 @@ public struct A2AClientConfiguration: Sendable {
             transportBinding = .httpREST
         }
 
+        // The HTTP+JSON (REST) binding was introduced in v1.0; v0.3 agents
+        // only expose JSON-RPC. Reject the mismatch up-front with a clear
+        // message rather than letting every REST call fail with HTTP 404.
+        if interface.protocolVersion.hasPrefix("0.") && transportBinding == .httpREST {
+            throw A2AError.versionNotSupported(
+                version: interface.protocolVersion,
+                supportedVersions: ["1.0"],
+                message: "v\(interface.protocolVersion) agents do not support the HTTP+JSON (REST) binding. Use JSON-RPC transport, or connect to a v1.0 agent."
+            )
+        }
+
         return A2AClientConfiguration(
             baseURL: baseURL,
             transportBinding: transportBinding,

@@ -303,25 +303,46 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
             throw A2AError.invalidResponse(message: "Invalid SSE data encoding")
         }
 
-        let decoder = makeDecoder()
+        // Attempt strategies in order and keep the first error for diagnosis.
+        // Each SSE data line may be either:
+        //   1. A JSON-RPC envelope wrapping the event in `result`
+        //   2. The bare event object (no envelope)
+        // and the server may emit keys in camelCase (.NET, Go) or snake_case (Python).
+        var firstError: Error?
 
-        // JSON-RPC streaming: each SSE data line is a full JSON-RPC response
-        // wrapping the actual event. The event's "kind" field discriminates the type.
-        if let rpcResponse = try? decoder.decode(JSONRPCResponse<StreamEventResult>.self, from: data) {
-            if let error = rpcResponse.error {
-                throw error.toA2AError()
+        for snakeCase in [false, true] {
+            let decoder = makeDecoder()
+            if snakeCase {
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
             }
-            if let result = rpcResponse.result {
+
+            do {
+                let rpcResponse = try decoder.decode(JSONRPCResponse<StreamEventResult>.self, from: data)
+                if let error = rpcResponse.error {
+                    throw error.toA2AError()
+                }
+                if let result = rpcResponse.result {
+                    return result.event
+                }
+            } catch let error as A2AError {
+                throw error
+            } catch {
+                if firstError == nil { firstError = error }
+            }
+
+            do {
+                let result = try decoder.decode(StreamEventResult.self, from: data)
                 return result.event
+            } catch {
+                if firstError == nil { firstError = error }
             }
         }
 
-        // Fallback: try direct kind-based decoding (without JSON-RPC wrapper)
-        if let result = try? decoder.decode(StreamEventResult.self, from: data) {
-            return result.event
-        }
-
-        throw A2AError.invalidResponse(message: "Unknown streaming event format")
+        let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"
+        let detail = firstError.map { " Underlying error: \($0)." } ?? ""
+        throw A2AError.invalidResponse(
+            message: "Unable to decode streaming event.\(detail) Body: \(snippet)"
+        )
     }
 }
 

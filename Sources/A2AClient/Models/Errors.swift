@@ -273,8 +273,11 @@ public struct A2AErrorResponse: Codable, Sendable, Equatable {
             return .taskNotFound(taskId: taskId, message: message)
         case JSONRPCErrorCode.taskNotCancelable.rawValue:
             let taskId = extractString("task_id") ?? extractString("taskId") ?? ""
-            let stateStr = extractString("state") ?? "working"
-            let state = TaskState(string: stateStr) ?? .working
+            // State comes from the server's error payload. When absent or
+            // unrecognized, report `.unspecified` rather than inventing a
+            // plausible value — a fabricated `.working` has been misread as
+            // a client-side decision in the past.
+            let state = extractString("state").flatMap { TaskState(string: $0) } ?? .unspecified
             return .taskNotCancelable(taskId: taskId, state: state, message: message)
         case JSONRPCErrorCode.pushNotificationNotSupported.rawValue:
             return .pushNotificationNotSupported(message: message)
