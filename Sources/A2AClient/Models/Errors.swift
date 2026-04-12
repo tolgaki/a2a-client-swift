@@ -114,7 +114,8 @@ extension A2AError: LocalizedError {
         case .taskNotFound(let taskId, let message):
             return message ?? "Task not found: \(taskId)"
         case .taskNotCancelable(let taskId, let state, let message):
-            return message ?? "Task \(taskId) cannot be cancelled in state: \(state.rawValue)"
+            let stateInfo = state == .unspecified ? " (state not reported)" : " in state: \(state.rawValue)"
+            return message ?? "Server rejected cancel for task \(taskId)\(stateInfo)"
         case .pushNotificationNotSupported(let message):
             return message ?? "Push notifications are not supported"
         case .unsupportedOperation(let operation, let message):

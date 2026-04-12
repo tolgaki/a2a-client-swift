@@ -73,7 +73,15 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
         try validateHTTPResponse(response)
 
-        let rpcResponse = try makeDecoder().decode(JSONRPCResponse<Response>.self, from: data)
+        let rpcResponse: JSONRPCResponse<Response>
+        do {
+            rpcResponse = try makeDecoder().decode(JSONRPCResponse<Response>.self, from: data)
+        } catch {
+            let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"
+            throw A2AError.invalidResponse(
+                message: "Failed to decode JSON-RPC response: \(error). Body: \(snippet)"
+            )
+        }
 
         if let error = rpcResponse.error {
             throw error.toA2AError()
@@ -191,7 +199,15 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
         try validateHTTPResponse(response)
 
-        let rpcResponse = try makeDecoder().decode(JSONRPCResponse<Response>.self, from: data)
+        let rpcResponse: JSONRPCResponse<Response>
+        do {
+            rpcResponse = try makeDecoder().decode(JSONRPCResponse<Response>.self, from: data)
+        } catch {
+            let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"
+            throw A2AError.invalidResponse(
+                message: "Failed to decode JSON-RPC response: \(error). Body: \(snippet)"
+            )
+        }
 
         if let error = rpcResponse.error {
             throw error.toA2AError()
@@ -219,7 +235,14 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
         let (data, response) = try await session.data(for: urlRequest)
         try validateHTTPResponse(response)
 
-        return try makeDecoder().decode(Response.self, from: data)
+        do {
+            return try makeDecoder().decode(Response.self, from: data)
+        } catch {
+            let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"
+            throw A2AError.invalidResponse(
+                message: "Failed to decode response: \(error). Body: \(snippet)"
+            )
+        }
     }
 
     // MARK: - Private Helpers
@@ -409,11 +432,14 @@ struct StreamEventResult: Decodable {
     let event: StreamingEvent
 
     private enum CodingKeys: String, CodingKey {
-        // v1.0 field-presence keys
+        // v1.0 field-presence keys (camelCase)
         case task
         case message
         case statusUpdate
         case artifactUpdate
+        // v1.0 field-presence keys (snake_case — Python SDK)
+        case statusUpdateSnake = "status_update"
+        case artifactUpdateSnake = "artifact_update"
         // v0.3 kind-based key
         case kind
     }
@@ -435,6 +461,14 @@ struct StreamEventResult: Decodable {
             let update = try container.decode(TaskArtifactUpdateEvent.self, forKey: .artifactUpdate)
             self.event = .taskArtifactUpdate(update)
         }
+        // v1.0: field-presence oneofs (snake_case variant — Python SDK)
+        else if container.contains(.statusUpdateSnake) {
+            let update = try container.decode(TaskStatusUpdateEvent.self, forKey: .statusUpdateSnake)
+            self.event = .taskStatusUpdate(update)
+        } else if container.contains(.artifactUpdateSnake) {
+            let update = try container.decode(TaskArtifactUpdateEvent.self, forKey: .artifactUpdateSnake)
+            self.event = .taskArtifactUpdate(update)
+        }
         // v0.3: kind-based discrimination (event fields are at the top level)
         else if let kind = try container.decodeIfPresent(String.self, forKey: .kind) {
             switch kind {
@@ -444,10 +478,10 @@ struct StreamEventResult: Decodable {
             case "message":
                 let message = try Message(from: decoder)
                 self.event = .message(message)
-            case "status-update":
+            case "status-update", "status_update":
                 let update = try TaskStatusUpdateEvent(from: decoder)
                 self.event = .taskStatusUpdate(update)
-            case "artifact-update":
+            case "artifact-update", "artifact_update":
                 let update = try TaskArtifactUpdateEvent(from: decoder)
                 self.event = .taskArtifactUpdate(update)
             default:

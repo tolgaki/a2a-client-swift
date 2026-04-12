@@ -122,7 +122,7 @@ public final class HTTPTransport: A2ATransport, Sendable {
         responseType: Response.Type
     ) async throws -> Response {
         let path = endpoint.pathWithTenant(serviceParameters.tenant)
-        let url = baseURL.appendingPathComponent(path)
+        let url = try urlForPath(path)
 
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: true) else {
             throw A2AError.invalidRequest(message: "Invalid URL for endpoint: \(path)")
@@ -173,6 +173,20 @@ public final class HTTPTransport: A2ATransport, Sendable {
 
     // MARK: - Private Helpers
 
+    /// Joins ``baseURL`` with an endpoint ``path`` using plain string
+    /// concatenation. Foundation's ``URL/appendingPathComponent(_:)`` can
+    /// percent-encode colons (`:`) on some OS versions, turning spec paths
+    /// like `/v1/message:send` into `/v1/message%3Asend` and causing 404s.
+    /// Direct concatenation avoids every such quirk.
+    private func urlForPath(_ path: String) throws -> URL {
+        var base = baseURL.absoluteString
+        if base.hasSuffix("/") { base = String(base.dropLast()) }
+        guard let url = URL(string: base + path) else {
+            throw A2AError.invalidRequest(message: "Invalid URL: \(base + path)")
+        }
+        return url
+    }
+
     /// Decodes a successful (2xx) response body, surfacing decode failures as
     /// an ``A2AError/invalidResponse`` with the underlying error and a short
     /// body snippet. ``A2AError/encodingError`` is reserved for errors on the
@@ -194,7 +208,7 @@ public final class HTTPTransport: A2ATransport, Sendable {
         acceptSSE: Bool = false
     ) async throws -> URLRequest {
         let path = endpoint.pathWithTenant(serviceParameters.tenant)
-        let url = baseURL.appendingPathComponent(path)
+        let url = try urlForPath(path)
         var request = URLRequest(url: url)
         request.httpMethod = endpoint.method.rawValue
 

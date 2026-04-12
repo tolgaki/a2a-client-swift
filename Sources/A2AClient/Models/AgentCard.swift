@@ -218,6 +218,14 @@ public struct AgentInterface: Codable, Sendable, Equatable {
         case protocolVersion
     }
 
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.url = try container.decode(String.self, forKey: .url)
+        self.protocolBinding = try container.decodeIfPresent(String.self, forKey: .protocolBinding) ?? AgentInterface.httpJSON
+        self.tenant = try container.decodeIfPresent(String.self, forKey: .tenant)
+        self.protocolVersion = try container.decodeIfPresent(String.self, forKey: .protocolVersion) ?? "1.0"
+    }
+
     // MARK: - Protocol Binding Constants
 
     /// JSON-RPC 2.0 protocol binding.
@@ -252,6 +260,17 @@ public struct AgentProvider: Codable, Sendable, Equatable {
     public init(organization: String, url: String? = nil) {
         self.organization = organization
         self.url = url ?? ""
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case url
+        case organization
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.organization = try container.decode(String.self, forKey: .organization)
+        self.url = try container.decodeIfPresent(String.self, forKey: .url) ?? ""
     }
 }
 
@@ -377,6 +396,18 @@ public struct AgentSkill: Codable, Sendable, Equatable, Identifiable {
         case inputModes
         case outputModes
         case securityRequirements
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(String.self, forKey: .id)
+        self.name = try container.decode(String.self, forKey: .name)
+        self.description = try container.decode(String.self, forKey: .description)
+        self.tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        self.examples = try container.decodeIfPresent([String].self, forKey: .examples)
+        self.inputModes = try container.decodeIfPresent([String].self, forKey: .inputModes)
+        self.outputModes = try container.decodeIfPresent([String].self, forKey: .outputModes)
+        self.securityRequirements = try container.decodeIfPresent([SecurityRequirement].self, forKey: .securityRequirements)
     }
 }
 

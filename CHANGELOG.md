@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.16] - 2026-04-12
+
+### Fixed
+
+- **REST URL construction** — Replaced `URL.appendingPathComponent` with direct string concatenation to prevent Foundation from percent-encoding colons (`:`) in spec paths like `/v1/message:send` on some OS versions.
+- **AgentCard decoding resilience** — `AgentInterface.protocolBinding` and `protocolVersion`, `AgentSkill.tags`, and `AgentProvider.url` now fall back to defaults when omitted by the server (e.g. .NET). Previously they were auto-synthesized as required, causing keyNotFound errors.
+- **JSON-RPC decode errors** — `JSONRPCTransport` now wraps decode failures as `invalidResponse` with a body snippet instead of leaking raw `DecodingError`.
+- **StreamEventResult snake_case keys** — The streaming event decoder now accepts `status_update`/`artifact_update` field-presence keys and kind values in addition to `statusUpdate`/`artifactUpdate` and `status-update`/`artifact-update`.
+- **cancelTask error clarity** — The `taskNotCancelable` error description now says "Server rejected cancel" to make it clear the error originates from the server, not a client-side guard.
+
 ## [1.0.15] - 2026-04-11
 
 ### Fixed
@@ -216,6 +226,7 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
+[1.0.16]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.16
 [1.0.15]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.15
 [1.0.5]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.5
 [1.0.4]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.4
