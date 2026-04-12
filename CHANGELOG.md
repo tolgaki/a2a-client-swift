@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.18] - 2026-04-12
+
+### Fixed
+
+- **Extended agent card REST path** — Changed from `/agent/authenticatedExtendedCard` to `/extendedAgentCard` per spec §11.3.4.
+
 ## [1.0.17] - 2026-04-12
 
 ### Fixed
@@ -234,6 +240,7 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
+[1.0.18]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.18
 [1.0.17]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.17
 [1.0.16]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.16
 [1.0.15]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.15

@@ -128,8 +128,8 @@ public struct A2AEndpoint: Sendable, Equatable {
     }
 
     /// Get extended agent card.
-    /// Spec: GET /agent/authenticatedExtendedCard
-    public static let getExtendedAgentCard = A2AEndpoint(method: .get, path: "/agent/authenticatedExtendedCard", jsonRPCMethod: "GetExtendedAgentCard", v03JsonRPCMethod: "agent/authenticatedExtendedCard")
+    /// Spec: GET /extendedAgentCard
+    public static let getExtendedAgentCard = A2AEndpoint(method: .get, path: "/extendedAgentCard", jsonRPCMethod: "GetExtendedAgentCard", v03JsonRPCMethod: "agent/authenticatedExtendedCard")
 
     /// Returns the path with an optional tenant prefix prepended.
     ///
