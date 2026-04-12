@@ -423,8 +423,26 @@ public struct SecurityRequirement: Codable, Sendable, Equatable {
     }
 
     public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        self.schemes = try container.decode([String: [String]].self)
+        // Standard format: {"scheme_name": ["scope1", "scope2"]}
+        if let container = try? decoder.singleValueContainer(),
+           let flat = try? container.decode([String: [String]].self) {
+            self.schemes = flat
+            return
+        }
+
+        // .NET format: {"schemes": {"scheme_name": {"list": []}}}
+        let keyed = try decoder.container(keyedBy: DotNetKeys.self)
+        if let wrapped = try keyed.decodeIfPresent([String: DotNetScopeList].self, forKey: .schemes) {
+            self.schemes = wrapped.mapValues { $0.list ?? [] }
+            return
+        }
+
+        self.schemes = [:]
+    }
+
+    private enum DotNetKeys: String, CodingKey { case schemes }
+    private struct DotNetScopeList: Decodable {
+        let list: [String]?
     }
 
     public func encode(to encoder: Encoder) throws {

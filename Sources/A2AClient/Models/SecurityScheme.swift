@@ -63,11 +63,50 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         case bearerFormat
         case flows
         case openIdConnectUrl
+        // .NET wrapper keys — discriminated-union encoding that nests the
+        // scheme fields inside a typed wrapper object.
+        case httpAuthSecurityScheme
+        case apiKeySecurityScheme
+        case oauth2SecurityScheme
+        case openIdConnectSecurityScheme
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
+        // .NET A2A SDK encodes security schemes as a discriminated union:
+        //   { "httpAuthSecurityScheme": { "scheme": "bearer", ... } }
+        // Detect the wrapper key and decode the inner object.
+        if container.contains(.httpAuthSecurityScheme) {
+            let inner = try container.decode(SecurityScheme.InnerHTTP.self, forKey: .httpAuthSecurityScheme)
+            self.type = .http; self.scheme = inner.scheme; self.bearerFormat = inner.bearerFormat
+            self.description = inner.description; self.name = nil; self.in = nil
+            self.flows = nil; self.openIdConnectUrl = nil
+            return
+        }
+        if container.contains(.apiKeySecurityScheme) {
+            let inner = try container.decode(SecurityScheme.InnerAPIKey.self, forKey: .apiKeySecurityScheme)
+            self.type = .apiKey; self.name = inner.name; self.in = inner.in
+            self.description = inner.description; self.scheme = nil; self.bearerFormat = nil
+            self.flows = nil; self.openIdConnectUrl = nil
+            return
+        }
+        if container.contains(.oauth2SecurityScheme) {
+            let inner = try container.decode(SecurityScheme.InnerOAuth2.self, forKey: .oauth2SecurityScheme)
+            self.type = .oauth2; self.flows = inner.flows
+            self.description = inner.description; self.name = nil; self.in = nil
+            self.scheme = nil; self.bearerFormat = nil; self.openIdConnectUrl = nil
+            return
+        }
+        if container.contains(.openIdConnectSecurityScheme) {
+            let inner = try container.decode(SecurityScheme.InnerOIDC.self, forKey: .openIdConnectSecurityScheme)
+            self.type = .openIdConnect; self.openIdConnectUrl = inner.openIdConnectUrl
+            self.description = inner.description; self.name = nil; self.in = nil
+            self.scheme = nil; self.bearerFormat = nil; self.flows = nil
+            return
+        }
+
+        // Standard flat format
         self.description = try container.decodeIfPresent(String.self, forKey: .description)
         self.name = try container.decodeIfPresent(String.self, forKey: .name)
         self.`in` = try container.decodeIfPresent(APIKeyLocation.self, forKey: .in)
@@ -76,9 +115,6 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         self.flows = try container.decodeIfPresent(OAuthFlows.self, forKey: .flows)
         self.openIdConnectUrl = try container.decodeIfPresent(String.self, forKey: .openIdConnectUrl)
 
-        // `type` is the JSON-Schema discriminator but some servers (notably .NET)
-        // omit it when it can be inferred from the sibling fields. Accept the
-        // explicit value when present; otherwise infer from field presence.
         if let explicit = try container.decodeIfPresent(SecuritySchemeType.self, forKey: .type) {
             self.type = explicit
         } else if self.flows != nil {
@@ -90,14 +126,44 @@ public struct SecurityScheme: Codable, Sendable, Equatable {
         } else if self.name != nil || self.`in` != nil {
             self.type = .apiKey
         } else {
-            throw DecodingError.keyNotFound(
-                CodingKeys.type,
-                DecodingError.Context(
-                    codingPath: container.codingPath,
-                    debugDescription: "SecurityScheme missing `type` and no sibling field permitted inference"
-                )
-            )
+            self.type = .http  // safe default — prefer not to crash on unknown schemes
         }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(`in`, forKey: .in)
+        try container.encodeIfPresent(scheme, forKey: .scheme)
+        try container.encodeIfPresent(bearerFormat, forKey: .bearerFormat)
+        try container.encodeIfPresent(flows, forKey: .flows)
+        try container.encodeIfPresent(openIdConnectUrl, forKey: .openIdConnectUrl)
+    }
+
+    // MARK: - .NET Wrapper Inner Types
+
+    private struct InnerHTTP: Decodable {
+        let scheme: String?
+        let bearerFormat: String?
+        let description: String?
+    }
+
+    private struct InnerAPIKey: Decodable {
+        let name: String?
+        let `in`: APIKeyLocation?
+        let description: String?
+    }
+
+    private struct InnerOAuth2: Decodable {
+        let flows: OAuthFlows?
+        let description: String?
+    }
+
+    private struct InnerOIDC: Decodable {
+        let openIdConnectUrl: String?
+        let description: String?
     }
 }
 

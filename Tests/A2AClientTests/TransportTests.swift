@@ -220,17 +220,17 @@ final class ClientOperationTests: XCTestCase {
 
     func testEndpoint_TenantPrefixing() {
         let endpoint = A2AEndpoint.sendMessage
-        XCTAssertEqual(endpoint.pathWithTenant(nil), "/v1/message:send")
-        XCTAssertEqual(endpoint.pathWithTenant(""), "/v1/message:send")
-        XCTAssertEqual(endpoint.pathWithTenant("acme"), "/acme/v1/message:send")
+        XCTAssertEqual(endpoint.pathWithTenant(nil), "/message:send")
+        XCTAssertEqual(endpoint.pathWithTenant(""), "/message:send")
+        XCTAssertEqual(endpoint.pathWithTenant("acme"), "/acme/message:send")
     }
 
     func testEndpoint_TenantPrefixingWithDynamicPaths() {
         let getTaskEndpoint = A2AEndpoint.getTask(id: "task-123")
-        XCTAssertEqual(getTaskEndpoint.pathWithTenant("corp"), "/corp/v1/tasks/task-123")
+        XCTAssertEqual(getTaskEndpoint.pathWithTenant("corp"), "/corp/tasks/task-123")
 
         let cancelEndpoint = A2AEndpoint.cancelTask(id: "task-456")
-        XCTAssertEqual(cancelEndpoint.pathWithTenant("org"), "/org/v1/tasks/task-456:cancel")
+        XCTAssertEqual(cancelEndpoint.pathWithTenant("org"), "/org/tasks/task-456:cancel")
     }
 
     func testEndpoint_PathSanitization() {
@@ -242,7 +242,7 @@ final class ClientOperationTests: XCTestCase {
 
         // Normal IDs pass through
         let normalEndpoint = A2AEndpoint.getTask(id: "task-123")
-        XCTAssertEqual(normalEndpoint.path, "/v1/tasks/task-123")
+        XCTAssertEqual(normalEndpoint.path, "/tasks/task-123")
     }
 
     func testEndpoint_JSONRPCMethodNames() {

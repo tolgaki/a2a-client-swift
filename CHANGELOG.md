@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.17] - 2026-04-12
+
+### Fixed
+
+- **REST paths: removed erroneous `/v1/` prefix** — The A2A spec (§5.3) defines REST paths as `/message:send`, `/tasks/{id}`, etc. with NO `/v1/` prefix. The prefix was added by mistake in 1.0.15 and caused every REST call to 404. Paths are now relative to the interface URL from the agent card, with tenant prepended by `pathWithTenant` when set.
+- **SecurityScheme .NET wrapper decoding** — The .NET A2A SDK serializes security schemes as a discriminated union (`{"httpAuthSecurityScheme": {"scheme":"bearer"}}` instead of flat `{"type":"http","scheme":"bearer"}`). The decoder now detects and unwraps `httpAuthSecurityScheme`, `apiKeySecurityScheme`, `oauth2SecurityScheme`, and `openIdConnectSecurityScheme` wrapper keys.
+- **SecurityRequirement .NET format** — The .NET server sends security requirements as `{"schemes":{"key":{"list":[]}}}` instead of `{"key":[]}`. The decoder now handles both formats.
+
 ## [1.0.16] - 2026-04-12
 
 ### Fixed
@@ -226,6 +234,7 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
+[1.0.17]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.17
 [1.0.16]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.16
 [1.0.15]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.15
 [1.0.5]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.5
