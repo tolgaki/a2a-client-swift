@@ -164,7 +164,7 @@ public final class A2AClient: Sendable {
     ///   - configuration: Optional configuration for accepted output modes, blocking, history length, etc.
     /// - Returns: The response, which is either a Task or Message.
     public func sendMessage(_ message: Message, configuration: MessageSendConfiguration? = nil) async throws -> SendMessageResponse {
-        let request = SendMessageRequest(message: message, configuration: configuration)
+        let request = SendMessageRequest(tenant: self.configuration.tenant, message: message, configuration: configuration)
         return try await transport.send(
             request: request,
             to: .sendMessage,
@@ -200,7 +200,7 @@ public final class A2AClient: Sendable {
     ///   - configuration: Optional configuration for accepted output modes, history length, etc.
     /// - Returns: An async sequence of streaming events.
     public func sendStreamingMessage(_ message: Message, configuration: MessageSendConfiguration? = nil) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
-        let request = SendMessageRequest(message: message, configuration: configuration)
+        let request = SendMessageRequest(tenant: self.configuration.tenant, message: message, configuration: configuration)
         return try await transport.stream(request: request, to: .sendStreamingMessage)
     }
 
@@ -295,7 +295,7 @@ public final class A2AClient: Sendable {
     ///   - metadata: Optional metadata for the cancel request.
     /// - Returns: The updated task.
     public func cancelTask(_ taskId: String, metadata: [String: AnyCodable]? = nil) async throws -> A2ATask {
-        let request = CancelTaskRequest(id: taskId, metadata: metadata)
+        let request = CancelTaskRequest(tenant: configuration.tenant, id: taskId, metadata: metadata)
         do {
             return try await transport.send(
                 request: request,
@@ -313,7 +313,7 @@ public final class A2AClient: Sendable {
     /// - Parameter taskId: The task ID to subscribe to.
     /// - Returns: An async sequence of streaming events.
     public func subscribeToTask(_ taskId: String) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
-        let request = TaskIdParams(id: taskId)
+        let request = TaskIdParams(tenant: configuration.tenant, id: taskId)
         return try await transport.stream(request: request, to: .subscribeToTask(id: taskId))
     }
 
@@ -329,7 +329,7 @@ public final class A2AClient: Sendable {
         taskId: String,
         config: PushNotificationConfig
     ) async throws -> TaskPushNotificationConfig {
-        let request = CreatePushNotificationConfigParams(
+        let request = CreatePushNotificationConfigParams(tenant: configuration.tenant,
             taskId: taskId,
             config: config
         )
@@ -379,7 +379,7 @@ public final class A2AClient: Sendable {
         taskId: String,
         configId: String
     ) async throws {
-        let request = DeletePushNotificationConfigParams(taskId: taskId, id: configId)
+        let request = DeletePushNotificationConfigParams(tenant: configuration.tenant, taskId: taskId, id: configId)
         try await transport.send(
             request: request,
             to: .deletePushNotificationConfig(taskId: taskId, configId: configId)

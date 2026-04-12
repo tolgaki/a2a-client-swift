@@ -444,7 +444,7 @@ final class ModelTests: XCTestCase {
 
     func testAgentCard_WellKnownURLConstruction() {
         let url = AgentCard.wellKnownURL(domain: "example.com")
-        XCTAssertEqual(url?.absoluteString, "https://example.com/.well-known/agent.json")
+        XCTAssertEqual(url?.absoluteString, "https://example.com/.well-known/agent-card.json")
     }
 
     func testAgentCard_EncodingAndDecoding() throws {

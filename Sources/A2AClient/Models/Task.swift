@@ -231,6 +231,14 @@ public struct TaskListResponse: Codable, Sendable, Equatable {
         case pageSize
         case totalSize
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.tasks = try container.decodeIfPresent([A2ATask].self, forKey: .tasks) ?? []
+        self.nextPageToken = try container.decodeIfPresent(String.self, forKey: .nextPageToken) ?? ""
+        self.pageSize = try container.decodeIfPresent(Int.self, forKey: .pageSize) ?? 50
+        self.totalSize = try container.decodeIfPresent(Int.self, forKey: .totalSize) ?? 0
+    }
 }
 
 // MARK: - CancelTaskRequest

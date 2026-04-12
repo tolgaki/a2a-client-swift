@@ -163,7 +163,7 @@ public struct MessageSendConfiguration: Codable, Sendable, Equatable {
     public let acceptedOutputModes: [String]?
 
     /// Optional push notification config for task updates.
-    public let pushNotificationConfig: PushNotificationConfig?
+    public let taskPushNotificationConfig: TaskPushNotificationConfig?
 
     /// Maximum number of most recent messages from task history to retrieve.
     /// - nil: No limit imposed by client
@@ -179,19 +179,19 @@ public struct MessageSendConfiguration: Codable, Sendable, Equatable {
 
     public init(
         acceptedOutputModes: [String]? = nil,
-        pushNotificationConfig: PushNotificationConfig? = nil,
+        taskPushNotificationConfig: TaskPushNotificationConfig? = nil,
         historyLength: Int? = nil,
         returnImmediately: Bool? = nil
     ) {
         self.acceptedOutputModes = acceptedOutputModes
-        self.pushNotificationConfig = pushNotificationConfig
+        self.taskPushNotificationConfig = taskPushNotificationConfig
         self.historyLength = historyLength
         self.returnImmediately = returnImmediately
     }
 
     private enum CodingKeys: String, CodingKey {
         case acceptedOutputModes
-        case pushNotificationConfig
+        case taskPushNotificationConfig
         case historyLength
         case returnImmediately
     }

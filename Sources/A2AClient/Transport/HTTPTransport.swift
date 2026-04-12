@@ -263,11 +263,7 @@ public final class HTTPTransport: A2ATransport, Sendable {
         case 403:
             throw A2AError.authorizationFailed(message: "Access denied")
         case 404:
-            // Try to parse error response for more details
-            if let data = data, let errorResponse = try? makeDecoder().decode(A2AErrorResponse.self, from: data) {
-                throw errorResponse.toA2AError()
-            }
-            // Generic 404 - could be any resource, not just a task
+            if let error = tryDecodeRESTError(from: data) { throw error }
             throw A2AError.invalidResponse(message: "Resource not found (HTTP 404)")
         case 415:
             throw A2AError.contentTypeNotSupported(
@@ -275,21 +271,46 @@ public final class HTTPTransport: A2ATransport, Sendable {
                 message: "Unsupported media type"
             )
         case 400:
-            if let data = data, let errorResponse = try? makeDecoder().decode(A2AErrorResponse.self, from: data) {
-                throw errorResponse.toA2AError()
-            }
+            if let error = tryDecodeRESTError(from: data) { throw error }
             throw A2AError.invalidRequest(message: "Bad request (HTTP 400)")
         case 500...599:
-            if let data = data, let errorResponse = try? makeDecoder().decode(A2AErrorResponse.self, from: data) {
-                throw errorResponse.toA2AError()
-            }
+            if let error = tryDecodeRESTError(from: data) { throw error }
             throw A2AError.internalError(message: "Server error (HTTP \(httpResponse.statusCode))")
         default:
-            if let data = data, let errorResponse = try? makeDecoder().decode(A2AErrorResponse.self, from: data) {
-                throw errorResponse.toA2AError()
-            }
+            if let error = tryDecodeRESTError(from: data) { throw error }
             throw A2AError.internalError(message: "HTTP \(httpResponse.statusCode)")
         }
+    }
+
+    /// Attempts to decode a REST error body in either AIP-193 format
+    /// (`{"error":{"code":…,"message":…}}`) or flat JSON-RPC format
+    /// (`{"code":…,"message":…}`).
+    private func tryDecodeRESTError(from data: Data?) -> A2AError? {
+        guard let data = data else { return nil }
+        let decoder = makeDecoder()
+
+        // AIP-193 wrapper: {"error": {"code": …, "message": …, "details": […]}}
+        struct AIP193Wrapper: Decodable {
+            let error: AIP193Error
+        }
+        struct AIP193Error: Decodable {
+            let code: Int?
+            let status: String?
+            let message: String?
+        }
+        if let wrapper = try? decoder.decode(AIP193Wrapper.self, from: data) {
+            let e = wrapper.error
+            let code = e.code ?? 0
+            let message = e.message ?? e.status ?? "Unknown error"
+            return A2AErrorResponse(code: code, message: message, data: nil).toA2AError()
+        }
+
+        // Flat format: {"code": …, "message": …}
+        if let errorResponse = try? decoder.decode(A2AErrorResponse.self, from: data) {
+            return errorResponse.toA2AError()
+        }
+
+        return nil
     }
 
     private func decodeStreamingEvent(from sseEvent: SSEEvent) throws -> StreamingEvent {

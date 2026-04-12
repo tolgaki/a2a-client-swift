@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.19] - 2026-04-12
+
+### Fixed
+
+- **JSON-RPC error codes** — Codes -32006 through -32009 were shuffled vs spec §10.2. Now: -32006=InvalidAgentResponse, -32007=ExtendedAgentCardNotConfigured, -32008=ExtensionSupportRequired, -32009=VersionNotSupported.
+- **Well-known agent card path** — Primary path is now `/.well-known/agent-card.json` per spec §8.2 (was incorrectly `agent.json`). `agent.json` is retained as a fallback.
+- **SubscribeToTask HTTP method** — Changed from GET to POST per spec §5.3 normative text.
+- **SendMessageConfiguration field name** — Renamed `pushNotificationConfig` → `taskPushNotificationConfig` to match the proto/spec field name.
+- **TaskListResponse resilience** — `nextPageToken`, `pageSize`, `totalSize` now default when missing instead of crashing the decode.
+- **REST error decoding** — `validateResponse` now parses both AIP-193 format (`{"error":{"code":…,"message":…}}`) and flat JSON-RPC format.
+- **Tenant propagation** — `A2AClient` now passes `configuration.tenant` into every request object (SendMessageRequest, CancelTaskRequest, TaskIdParams, push notification params) so JSON-RPC servers receive the tenant in `params`.
+
 ## [1.0.18] - 2026-04-12
 
 ### Fixed
@@ -240,6 +252,7 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
+[1.0.19]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.19
 [1.0.18]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.18
 [1.0.17]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.17
 [1.0.16]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.16

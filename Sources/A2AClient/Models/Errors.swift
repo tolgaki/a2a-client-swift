@@ -177,7 +177,7 @@ public enum JSONRPCErrorCode: Int, Sendable {
     /// Internal JSON-RPC error.
     case internalError = -32603
 
-    // A2A-specific error codes (reserved range: -32000 to -32099)
+    // A2A-specific error codes per spec §10.2
 
     /// Task not found.
     case taskNotFound = -32001
@@ -194,22 +194,22 @@ public enum JSONRPCErrorCode: Int, Sendable {
     /// Content type not supported.
     case contentTypeNotSupported = -32005
 
-    /// Version not supported.
-    case versionNotSupported = -32006
+    /// Invalid agent response.
+    case invalidAgentResponse = -32006
+
+    /// Extended agent card not configured.
+    case extendedAgentCardNotConfigured = -32007
 
     /// Extension support required.
-    case extensionSupportRequired = -32007
+    case extensionSupportRequired = -32008
 
-    /// Invalid agent response (A2AClient extension, not in official spec).
-    case invalidAgentResponse = -32008
+    /// Version not supported.
+    case versionNotSupported = -32009
 
-    /// Extended agent card not configured (A2AClient extension, not in official spec).
-    case extendedAgentCardNotConfigured = -32009
-
-    /// Authentication required.
+    /// Authentication required (SDK extension).
     case authenticationRequired = -32010
 
-    /// Authorization failed.
+    /// Authorization failed (SDK extension).
     case authorizationFailed = -32011
 }
 

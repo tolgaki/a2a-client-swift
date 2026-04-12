@@ -98,9 +98,9 @@ public struct A2AEndpoint: Sendable, Equatable {
     }
 
     /// Subscribe to task updates.
-    /// Spec: GET /tasks/{id}:subscribe
+    /// Spec §5.3: POST /tasks/{id}:subscribe
     public static func subscribeToTask(id: String) -> A2AEndpoint {
-        A2AEndpoint(method: .get, path: "/tasks/\(Self.sanitizePathComponent(id)):subscribe", isStreaming: true, jsonRPCMethod: "SubscribeToTask", v03JsonRPCMethod: "tasks/resubscribe")
+        A2AEndpoint(method: .post, path: "/tasks/\(Self.sanitizePathComponent(id)):subscribe", isStreaming: true, jsonRPCMethod: "SubscribeToTask", v03JsonRPCMethod: "tasks/resubscribe")
     }
 
     /// Create push notification configuration.

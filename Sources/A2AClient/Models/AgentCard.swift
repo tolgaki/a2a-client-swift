@@ -475,15 +475,15 @@ public struct AgentCardSignature: Codable, Sendable, Equatable {
 // MARK: - Well-Known URI
 
 extension AgentCard {
-    /// The well-known URI path for agent card discovery (v1.0).
-    public static let wellKnownPath = "/.well-known/agent.json"
+    /// The well-known URI path for agent card discovery per spec §8.2.
+    public static let wellKnownPath = "/.well-known/agent-card.json"
 
-    /// The legacy well-known URI path for agent card discovery (v0.3).
-    public static let legacyWellKnownPath = "/.well-known/agent-card.json"
+    /// Alternative well-known path used by some early v1.0 implementations.
+    public static let alternateWellKnownPath = "/.well-known/agent.json"
 
     /// Constructs the well-known agent card URL for a given base URL.
     public static func wellKnownURL(for baseURL: URL) -> URL {
-        baseURL.appendingPathComponent(".well-known/agent.json")
+        baseURL.appendingPathComponent(".well-known/agent-card.json")
     }
 
     /// Constructs the well-known agent card URL for a given domain.
