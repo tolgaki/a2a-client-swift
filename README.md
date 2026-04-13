@@ -10,6 +10,7 @@ A Swift client library for the Agent-to-Agent (A2A) Protocol, enabling seamless 
 ## Quick Links
 
 - [Documentation](DESIGN.md)
+- [Examples & sample tour](Examples/README.md)
 - [A2A Protocol Spec](https://a2a-protocol.org/latest/)
 - [Issues](https://github.com/tolgaki/a2a-client-swift/issues)
 - [Contributing](CONTRIBUTING.md)
@@ -443,6 +444,24 @@ let results = try await withThrowingTaskGroup(of: (String, String).self) { group
 See the [full example](Examples/TravelPlannerAgent/TravelPlannerAgent.swift) for the complete orchestrator with error handling and polling fallback.
 
 For a more advanced pattern, the [`SmartTravelPlanner`](Examples/SmartTravelPlanner/SmartTravelPlannerAgent.swift) example adds an `IntentRouter` protocol that classifies user intent, selects agents, and crafts per-agent prompts — showing how an on-device LLM (e.g. Apple Intelligence / Foundation Models) can drive agent orchestration from natural language queries.
+
+## Examples & A2A 1.0 Sample Tour
+
+The [`Examples/`](Examples/README.md) directory contains a guided tour of every major surface of the A2A protocol 1.0, with each sample focused on one concept and documented inline. Pick the one that matches what you're trying to do:
+
+| Sample | Focus | Run |
+| --- | --- | --- |
+| [HelloAgent](Examples/HelloAgent/HelloAgent.swift) | Bare-minimum send-and-print quickstart | `swift run HelloAgent` |
+| [AgentInspector](Examples/AgentInspector/AgentInspector.swift) | Discovery + every `AgentCard` field | `swift run AgentInspector` |
+| [MultimodalMessenger](Examples/MultimodalMessenger/MultimodalMessenger.swift) | Multi-part messages (text / file / URL / data) | `swift run MultimodalMessenger` |
+| [StreamingNarrator](Examples/StreamingNarrator/StreamingNarrator.swift) | All four `StreamingEvent` cases with chunked artifacts | `swift run StreamingNarrator` |
+| [TaskLifecycleDemo](Examples/TaskLifecycleDemo/TaskLifecycleDemo.swift) | Submit, poll, list, inspect, cancel | `swift run TaskLifecycleDemo` |
+| [PushNotificationDemo](Examples/PushNotificationDemo/PushNotificationDemo.swift) | Webhook CRUD on a task | `swift run PushNotificationDemo` |
+| [AuthShowcase](Examples/AuthShowcase/AuthShowcase.swift) | Every built-in auth provider (offline-safe) | `swift run AuthShowcase` |
+| [TravelPlannerAgent](Examples/TravelPlannerAgent/TravelPlannerAgent.swift) | Multi-agent orchestration with skill routing | `swift run TravelPlannerAgent` |
+| [SmartTravelPlanner](Examples/SmartTravelPlanner/SmartTravelPlannerAgent.swift) | LLM-style intent routing on top of the orchestrator | `swift run SmartTravelPlanner` |
+
+See [`Examples/README.md`](Examples/README.md) for an extended SDK quick reference, troubleshooting tips, and per-sample walk-throughs.
 
 ## Error Handling
 

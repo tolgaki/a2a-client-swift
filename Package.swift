@@ -32,6 +32,41 @@ let package = Package(
             dependencies: ["A2AClient"],
             path: "Examples/SmartTravelPlanner"
         ),
+        .executableTarget(
+            name: "HelloAgent",
+            dependencies: ["A2AClient"],
+            path: "Examples/HelloAgent"
+        ),
+        .executableTarget(
+            name: "AgentInspector",
+            dependencies: ["A2AClient"],
+            path: "Examples/AgentInspector"
+        ),
+        .executableTarget(
+            name: "StreamingNarrator",
+            dependencies: ["A2AClient"],
+            path: "Examples/StreamingNarrator"
+        ),
+        .executableTarget(
+            name: "MultimodalMessenger",
+            dependencies: ["A2AClient"],
+            path: "Examples/MultimodalMessenger"
+        ),
+        .executableTarget(
+            name: "TaskLifecycleDemo",
+            dependencies: ["A2AClient"],
+            path: "Examples/TaskLifecycleDemo"
+        ),
+        .executableTarget(
+            name: "AuthShowcase",
+            dependencies: ["A2AClient"],
+            path: "Examples/AuthShowcase"
+        ),
+        .executableTarget(
+            name: "PushNotificationDemo",
+            dependencies: ["A2AClient"],
+            path: "Examples/PushNotificationDemo"
+        ),
         .testTarget(
             name: "A2AClientTests",
             dependencies: ["A2AClient"],
