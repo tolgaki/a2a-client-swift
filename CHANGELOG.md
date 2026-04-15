@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.20] - 2026-04-14
+
+### Changed — migration release
+
+This package is now a thin re-export shim that depends on [`a2a-swift 1.1.0`](https://github.com/tolgaki/a2a-swift) and re-exports its `A2AClient` product. Existing consumers need no source code changes; `import A2AClient` continues to work.
+
+- Deleted `Sources/A2AClient/*` — all client code is now in `a2a-swift`.
+- Deleted `Tests/A2AClientTests/*` — tests live in `a2a-swift`.
+- Deleted `Examples/*` — examples live in `a2a-swift`.
+- Added `Sources/A2AClientShim/A2AClientShim.swift` — one-line `@_exported import A2AClient` trampoline.
+- Package dependency on `https://github.com/tolgaki/a2a-swift.git` (from `1.1.0`).
+
+### ⚠️ Deployment target bumped
+
+- `macOS 12 → 14`
+- `iOS 15 → 17`
+- `watchOS 8 → 10`
+- `tvOS 15 → 17`
+- `visionOS 1` (new)
+
+Required by Hummingbird 2.x on the server side of `a2a-swift`. If you need to stay on macOS 12 / iOS 15, pin to `exact: "1.0.19"`.
+
+### Migration path
+
+Recommended: switch your SPM dependency from `https://github.com/tolgaki/a2a-client-swift.git` to `https://github.com/tolgaki/a2a-swift.git`. See the README for details.
+
+This repository will be archived after a short transition period. All future development happens in `a2a-swift`.
+
 ## [1.0.19] - 2026-04-12
 
 ### Fixed
@@ -252,6 +280,7 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
+[1.0.20]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.20
 [1.0.19]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.19
 [1.0.18]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.18
 [1.0.17]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.17
