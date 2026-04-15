@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.22] - 2026-04-15
+
+### Fixed
+
+- **`getPushNotificationConfig` / `listPushNotificationConfigs` over JSON-RPC** — These methods were passing empty query items, so the JSON-RPC transport re-materialized them as `params: {}` and the server couldn't decode the request. Now both methods pass `taskId` (and `configId` for `get`) as query items. REST is unaffected since the ids are in the URL path.
+- Port of the same fix that landed briefly in `a2a-swift 1.1.0`; merged into the canonical repo.
+
 ## [1.0.21] - 2026-04-15
 
 ### Changed — unwinds the 1.0.20 shim
@@ -274,6 +281,7 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
+[1.0.22]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.22
 [1.0.21]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.21
 [1.0.19]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.19
 [1.0.18]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.18

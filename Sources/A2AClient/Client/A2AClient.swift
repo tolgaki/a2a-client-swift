@@ -350,9 +350,15 @@ public final class A2AClient: Sendable {
         taskId: String,
         configId: String
     ) async throws -> TaskPushNotificationConfig {
+        // Pass the ids as query items so the JSON-RPC transport can
+        // re-materialize them as `params`. REST ignores these since the
+        // ids are already in the URL path.
         return try await transport.get(
             from: .getPushNotificationConfig(taskId: taskId, configId: configId),
-            queryItems: [],
+            queryItems: [
+                URLQueryItem(name: "taskId", value: taskId),
+                URLQueryItem(name: "id", value: configId),
+            ],
             responseType: TaskPushNotificationConfig.self
         )
     }
@@ -364,7 +370,9 @@ public final class A2AClient: Sendable {
     public func listPushNotificationConfigs(taskId: String) async throws -> [TaskPushNotificationConfig] {
         let response = try await transport.get(
             from: .listPushNotificationConfigs(taskId: taskId),
-            queryItems: [],
+            queryItems: [
+                URLQueryItem(name: "taskId", value: taskId),
+            ],
             responseType: ListPushNotificationConfigsResponse.self
         )
         return response.configs ?? []
