@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.21] - 2026-04-15
+
+### Changed — unwinds the 1.0.20 shim
+
+This release restores `a2a-client-swift` to a fully self-contained client package. The 1.0.20 re-export shim pointing at `a2a-swift` has been reverted. All client code, tests, and examples are back in this repository. There are no runtime API changes relative to 1.0.19 — this is a packaging restructure only.
+
+**What changed since 1.0.20:**
+
+- Reverted the shim commit. `Sources/A2AClient/`, `Tests/A2AClientTests/`, and all `Examples/` directories are restored byte-for-byte from 1.0.19 + the docs PR (`6b30495`).
+- Deployment target is back to **macOS 12 / iOS 15 / watchOS 8 / tvOS 15** (was bumped to 14/17 in 1.0.20).
+- Zero third-party dependencies.
+- Version string bumped to `1.0.21`.
+
+**Why the unwind:**
+
+The 1.0.20 release was part of a package rename experiment (`a2a-client-swift` → `a2a-swift`) that turned out to be overengineered. Lifting the client code into a new repo offered no benefit over leaving it here, and the resulting monorepo (`a2a-swift` with both client and server targets) leaked Hummingbird's transitive dependency graph into every client-only consumer. Rather than live with three repos and a shim, we're back to the simpler shape: `a2a-client-swift` is the canonical client, and the server runtime lives in a new sibling repo [`a2a-swift-server`](https://github.com/tolgaki/a2a-swift-server) that depends on this package for its wire types.
+
+**Consumers:**
+
+- If you were on `1.0.19` or earlier: update to `1.0.21` — no source changes, no dependency changes.
+- If you were briefly on `1.0.20` via the shim: update to `1.0.21`. The shim still works (it resolves `a2a-swift 1.2.0` underneath) but `1.0.21` is a cleaner, lower-churn target.
+
 ## [1.0.19] - 2026-04-12
 
 ### Fixed
@@ -252,6 +274,7 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
+[1.0.21]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.21
 [1.0.19]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.19
 [1.0.18]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.18
 [1.0.17]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.17
