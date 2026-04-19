@@ -31,14 +31,14 @@ This project has adopted the [Contributor Covenant](https://www.contributor-cove
 2. Clone your fork locally:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/a2a-client-swift.git
-cd a2a-client-swift
+git clone https://github.com/YOUR-USERNAME/a2a-swift-client.git
+cd a2a-swift-client
 ```
 
 3. Add the upstream remote:
 
 ```bash
-git remote add upstream https://github.com/tolgaki/a2a-client-swift.git
+git remote add upstream https://github.com/tolgaki/a2a-swift-client.git
 ```
 
 ## Development Setup

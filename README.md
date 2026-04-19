@@ -1,6 +1,6 @@
 # A2AClient
 
-[![CI](https://github.com/tolgaki/a2a-client-swift/actions/workflows/ci.yml/badge.svg)](https://github.com/tolgaki/a2a-client-swift/actions/workflows/ci.yml)
+[![CI](https://github.com/tolgaki/a2a-swift-client/actions/workflows/ci.yml/badge.svg)](https://github.com/tolgaki/a2a-swift-client/actions/workflows/ci.yml)
 [![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%20%7C%20macOS%20%7C%20watchOS%20%7C%20tvOS-blue.svg)](https://developer.apple.com)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
@@ -12,7 +12,7 @@ A Swift client library for the Agent-to-Agent (A2A) Protocol, enabling seamless 
 - [Documentation](DESIGN.md)
 - [Examples & sample tour](Examples/README.md)
 - [A2A Protocol Spec](https://a2a-protocol.org/latest/)
-- [Issues](https://github.com/tolgaki/a2a-client-swift/issues)
+- [Issues](https://github.com/tolgaki/a2a-swift-client/issues)
 - [Contributing](CONTRIBUTING.md)
 
 ## Overview
@@ -38,7 +38,7 @@ Add A2AClient to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/tolgaki/a2a-client-swift.git", from: "1.0.5")
+    .package(url: "https://github.com/tolgaki/a2a-swift-client.git", from: "1.0.5")
 ]
 ```
 
@@ -56,7 +56,7 @@ targets: [
 ### Xcode
 
 1. Go to File > Add Package Dependencies
-2. Enter the repository URL: `https://github.com/tolgaki/a2a-client-swift`
+2. Enter the repository URL: `https://github.com/tolgaki/a2a-swift-client`
 3. Select the version and add the package
 
 ## Quick Start

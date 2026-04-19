@@ -281,16 +281,16 @@ AgentCard(name: "Agent", supportedInterfaces: [
 
 ---
 
-[1.0.22]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.22
-[1.0.21]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.21
-[1.0.19]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.19
-[1.0.18]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.18
-[1.0.17]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.17
-[1.0.16]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.16
-[1.0.15]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.15
-[1.0.5]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.5
-[1.0.4]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.4
-[1.0.3]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.3
-[1.0.2]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.2
-[1.0.1]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.1
-[1.0.0]: https://github.com/tolgaki/a2a-client-swift/releases/tag/1.0.0
+[1.0.22]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.22
+[1.0.21]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.21
+[1.0.19]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.19
+[1.0.18]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.18
+[1.0.17]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.17
+[1.0.16]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.16
+[1.0.15]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.15
+[1.0.5]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.5
+[1.0.4]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.4
+[1.0.3]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.3
+[1.0.2]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.2
+[1.0.1]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.1
+[1.0.0]: https://github.com/tolgaki/a2a-swift-client/releases/tag/1.0.0

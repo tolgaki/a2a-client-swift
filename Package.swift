@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "a2a-client-swift",
+    name: "a2a-swift-client",
     platforms: [
         .iOS(.v15),
         .macOS(.v12),
