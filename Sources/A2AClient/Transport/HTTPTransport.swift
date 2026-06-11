@@ -93,7 +93,33 @@ public final class HTTPTransport: A2ATransport, Sendable {
         // This avoids a race where the unstructured Task inside the stream closure
         // may not start (or bytes(for:) may not return) before the consumer iterates.
         let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
-        try validateResponse(response, data: nil)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw A2AError.invalidResponse(message: "Invalid response type")
+        }
+
+        // Non-2xx: collect the body so the typed error it carries (AIP-193
+        // or flat) is thrown instead of a generic status-code error.
+        if !(200...299).contains(httpResponse.statusCode) {
+            let body = try? await Self.collect(bytes, upTo: 1 << 20)
+            try validateResponse(response, data: body)
+        }
+
+        // A server that fails before opening the stream may answer 2xx with
+        // a plain JSON error body instead of text/event-stream (§9.4.2).
+        // Without this check that body parses as zero SSE events and the
+        // error is silently swallowed.
+        if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
+           !contentType.lowercased().contains("text/event-stream") {
+            let data = try await Self.collect(bytes, upTo: 1 << 20)
+            if let error = tryDecodeRESTError(from: data) {
+                throw error
+            }
+            let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"
+            throw A2AError.invalidResponse(
+                message: "Expected an SSE stream but received \(contentType). Body: \(snippet)"
+            )
+        }
 
         return AsyncThrowingStream { continuation in
             let streamTask = _Concurrency.Task {
@@ -181,6 +207,18 @@ public final class HTTPTransport: A2ATransport, Sendable {
     }
 
     // MARK: - Private Helpers
+
+    /// Drains an async byte stream into a `Data`, stopping at `limit` bytes.
+    /// Used for non-SSE bodies on streaming endpoints, which are small
+    /// error envelopes.
+    private static func collect(_ bytes: URLSession.AsyncBytes, upTo limit: Int) async throws -> Data {
+        var data = Data()
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count >= limit { break }
+        }
+        return data
+    }
 
     /// Joins ``baseURL`` with an endpoint ``path`` using plain string
     /// concatenation. Foundation's ``URL/appendingPathComponent(_:)`` can

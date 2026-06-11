@@ -145,6 +145,24 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
         let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
         try validateHTTPResponse(response)
 
+        // A server that fails before opening the stream answers HTTP 200 with
+        // a plain JSON error body instead of text/event-stream (§9.4.2).
+        // Without this check that body parses as zero SSE events and the
+        // error is silently swallowed.
+        if let httpResponse = response as? HTTPURLResponse,
+           let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
+           !contentType.lowercased().contains("text/event-stream") {
+            let data = try await Self.collect(bytes, upTo: 1 << 20)
+            if let rpcResponse = try? makeDecoder().decode(JSONRPCResponse<AnyCodable>.self, from: data),
+               let error = rpcResponse.error {
+                throw error.toA2AError()
+            }
+            let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"
+            throw A2AError.invalidResponse(
+                message: "Expected an SSE stream but received \(contentType). Body: \(snippet)"
+            )
+        }
+
         return AsyncThrowingStream { continuation in
             let streamTask = _Concurrency.Task {
                 do {
@@ -263,6 +281,18 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
     /// Query-item names whose values are booleans in the A2A method schemas.
     private static let booleanParams: Set<String> = ["includeArtifacts"]
+
+    /// Drains an async byte stream into a `Data`, stopping at `limit` bytes.
+    /// Used for non-SSE bodies on streaming endpoints, which are small
+    /// error envelopes.
+    private static func collect(_ bytes: URLSession.AsyncBytes, upTo limit: Int) async throws -> Data {
+        var data = Data()
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count >= limit { break }
+        }
+        return data
+    }
 
     private func buildRequest<Body: Encodable>(
         body: Body,

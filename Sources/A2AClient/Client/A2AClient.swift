@@ -29,7 +29,11 @@ public final class A2AClient: Sendable {
     public init(configuration: A2AClientConfiguration) {
         self.configuration = configuration
 
-        let sessionConfig = configuration.sessionConfiguration
+        // Copy before mutating — URLSessionConfiguration is a reference type,
+        // and setting the timeout on the caller's instance would leak into
+        // every other client built from the same configuration object.
+        let sessionConfig = (configuration.sessionConfiguration.copy() as? URLSessionConfiguration)
+            ?? configuration.sessionConfiguration
         sessionConfig.timeoutIntervalForRequest = configuration.timeoutInterval
         self.session = URLSession(configuration: sessionConfig)
 
