@@ -4,6 +4,9 @@
 // Agent2Agent Protocol - Main Client Implementation
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// A2A protocol client for communicating with A2A-compatible agents.
 ///
@@ -26,7 +29,11 @@ public final class A2AClient: Sendable {
     public init(configuration: A2AClientConfiguration) {
         self.configuration = configuration
 
-        let sessionConfig = configuration.sessionConfiguration
+        // Copy before mutating — URLSessionConfiguration is a reference type,
+        // and setting the timeout on the caller's instance would leak into
+        // every other client built from the same configuration object.
+        let sessionConfig = (configuration.sessionConfiguration.copy() as? URLSessionConfiguration)
+            ?? configuration.sessionConfiguration
         sessionConfig.timeoutIntervalForRequest = configuration.timeoutInterval
         self.session = URLSession(configuration: sessionConfig)
 
@@ -505,11 +512,24 @@ public enum SendMessageResponse: Codable, Sendable {
     }
 
     public func encode(to encoder: Encoder) throws {
+        // v0.3 used flat envelopes with a `kind` discriminator; v1.0 wraps
+        // the payload in a field-presence oneof ({"task": …} / {"message": …}).
+        if encoder.encodesA2AV03 {
+            switch self {
+            case .task(let task):
+                try task.encode(to: encoder)
+            case .message(let message):
+                try message.encode(to: encoder)
+            }
+            return
+        }
+
+        var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .task(let task):
-            try task.encode(to: encoder)
+            try container.encode(task, forKey: .task)
         case .message(let message):
-            try message.encode(to: encoder)
+            try container.encode(message, forKey: .message)
         }
     }
 }

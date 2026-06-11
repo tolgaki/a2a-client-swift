@@ -137,8 +137,10 @@ final class ModelTests: XCTestCase {
         XCTAssertFalse(json.contains("media_type"))
     }
 
-    func testPart_KindDiscriminatorEncoding() throws {
+    func testPart_KindDiscriminatorEncoding_V03() throws {
+        // v0.3 peers expect the kind discriminator
         let encoder = JSONEncoder()
+        encoder.userInfo[a2aProtocolVersionKey] = "0.3"
 
         // Text part should have kind "text"
         let textPart = Part.text("hello")
@@ -159,6 +161,19 @@ final class ModelTests: XCTestCase {
         let dataPart = Part.data(AnyCodable(["key": "val"]))
         let dataJSON = String(data: try encoder.encode(dataPart), encoding: .utf8)!
         XCTAssertTrue(dataJSON.contains("\"kind\":\"data\""))
+    }
+
+    func testPart_NoKindDiscriminator_V10() throws {
+        // v1.0 strict decoders reject unknown fields, so kind must be omitted
+        let encoder = JSONEncoder()
+
+        let textJSON = String(data: try encoder.encode(Part.text("hello")), encoding: .utf8)!
+        XCTAssertFalse(textJSON.contains("\"kind\""))
+
+        let v10Encoder = JSONEncoder()
+        v10Encoder.userInfo[a2aProtocolVersionKey] = "1.0"
+        let dataJSON = String(data: try v10Encoder.encode(Part.data(AnyCodable(["key": "val"]))), encoding: .utf8)!
+        XCTAssertFalse(dataJSON.contains("\"kind\""))
     }
 
     func testPart_DecodingWithKindField() throws {
@@ -321,14 +336,26 @@ final class ModelTests: XCTestCase {
         XCTAssertFalse(json.contains("task_id"))
     }
 
-    func testMessage_KindDiscriminatorEncoding() throws {
+    func testMessage_KindDiscriminatorEncoding_V03() throws {
+        let message = Message.user("Hello")
+
+        let encoder = JSONEncoder()
+        encoder.userInfo[a2aProtocolVersionKey] = "0.3"
+        let data = try encoder.encode(message)
+        let json = String(data: data, encoding: .utf8)!
+
+        XCTAssertTrue(json.contains("\"kind\":\"message\""))
+    }
+
+    func testMessage_NoKindDiscriminator_V10() throws {
+        // v1.0 strict decoders reject unknown fields, so kind must be omitted
         let message = Message.user("Hello")
 
         let encoder = JSONEncoder()
         let data = try encoder.encode(message)
         let json = String(data: data, encoding: .utf8)!
 
-        XCTAssertTrue(json.contains("\"kind\":\"message\""))
+        XCTAssertFalse(json.contains("\"kind\""))
     }
 
     func testMessage_DecodingWithKindField() throws {

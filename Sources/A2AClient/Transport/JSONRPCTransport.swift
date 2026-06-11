@@ -4,6 +4,9 @@
 // Agent2Agent Protocol - JSON-RPC 2.0 Transport Implementation
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// JSON-RPC 2.0 transport implementation for A2A protocol.
 ///
@@ -20,6 +23,11 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
     private let serviceParameters: A2AServiceParameters
     private let authenticationProvider: AuthenticationProvider?
 
+    /// Session-level headers, captured once — `session.configuration`
+    /// copies the configuration object on every access, and a session's
+    /// configuration cannot change after creation.
+    private let sessionHeaders: [String: String]
+
     /// Counter for generating unique request IDs.
     private let requestIdCounter = AtomicCounter()
 
@@ -33,6 +41,7 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
         self.session = session
         self.serviceParameters = serviceParameters
         self.authenticationProvider = authenticationProvider
+        self.sessionHeaders = session.configuration.httpAdditionalHeaders as? [String: String] ?? [:]
     }
 
     private func makeEncoder() -> JSONEncoder {
@@ -130,25 +139,59 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
         let urlRequest = try await buildRequest(body: rpcRequest, acceptSSE: true)
 
-        // Establish the HTTP connection BEFORE creating the AsyncThrowingStream.
-        // This avoids a race where the unstructured Task inside the stream closure
-        // may not start (or bytes(for:) may not return) before the consumer iterates.
-        let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
-        try validateHTTPResponse(response)
+        // Delegate-backed connection: chunks arrive incrementally on both
+        // Darwin and Linux (URLSession.bytes does not stream reliably on
+        // corelibs-foundation). The response head is awaited up front so
+        // pre-stream failures throw from this call, not from iteration.
+        let connection = SSEConnection()
+        let (httpResponse, chunks) = try await connection.connect(request: urlRequest)
+
+        do {
+            try validateHTTPResponse(httpResponse)
+        } catch {
+            connection.cancel()
+            throw error
+        }
+
+        // A server that fails before opening the stream answers HTTP 200 with
+        // a plain JSON error body instead of text/event-stream (§9.4.2).
+        // Without this check that body parses as zero SSE events and the
+        // error is silently swallowed.
+        if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
+           !contentType.lowercased().contains("text/event-stream") {
+            defer { connection.cancel() }
+            let data = try await Self.collect(chunks, upTo: 1 << 20)
+            if let rpcResponse = try? makeDecoder().decode(JSONRPCResponse<AnyCodable>.self, from: data),
+               let error = rpcResponse.error {
+                throw error.toA2AError()
+            }
+            let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"
+            throw A2AError.invalidResponse(
+                message: "Expected an SSE stream but received \(contentType). Body: \(snippet)"
+            )
+        }
 
         return AsyncThrowingStream { continuation in
             let streamTask = _Concurrency.Task {
                 do {
                     let parser = SSEParser()
+                    var splitter = SSELineSplitter()
 
-                    for try await line in bytes.lines {
-                        if let event = parser.parse(line: line) {
-                            let streamingEvent = try decodeStreamingEvent(from: event)
-                            continuation.yield(streamingEvent)
+                    for try await chunk in chunks {
+                        for line in splitter.push(chunk) {
+                            if let event = parser.parse(line: line) {
+                                let streamingEvent = try decodeStreamingEvent(from: event)
+                                continuation.yield(streamingEvent)
+                            }
                         }
                     }
 
-                    // Flush any remaining buffered event (last data: line with no trailing blank line)
+                    // Flush a final unterminated line, then any buffered event
+                    // (last data: line with no trailing blank line).
+                    if let tail = splitter.flush(), let event = parser.parse(line: tail) {
+                        let streamingEvent = try decodeStreamingEvent(from: event)
+                        continuation.yield(streamingEvent)
+                    }
                     if let event = parser.parse(line: "") {
                         let streamingEvent = try decodeStreamingEvent(from: event)
                         continuation.yield(streamingEvent)
@@ -162,6 +205,7 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
             continuation.onTermination = { _ in
                 streamTask.cancel()
+                connection.cancel()
             }
         }
     }
@@ -173,17 +217,19 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
     ) async throws -> Response {
         // JSON-RPC wraps all requests as POST with method names.
         // Convert query items into a params dictionary for the RPC call.
+        // Param types come from the A2A method schemas, not from the textual
+        // shape of the value: only coerce fields the schemas declare as
+        // numeric or boolean. Everything else (ids, tokens) must stay a
+        // string even when it happens to look like a number.
         var params: [String: AnyCodable] = [:]
         for item in queryItems {
-            if let value = item.value {
-                // Try to preserve numeric types for JSON-RPC params
-                if let intVal = Int(value) {
-                    params[item.name] = AnyCodable(intVal)
-                } else if let boolVal = Bool(value) {
-                    params[item.name] = AnyCodable(boolVal)
-                } else {
-                    params[item.name] = AnyCodable(value)
-                }
+            guard let value = item.value else { continue }
+            if Self.integerParams.contains(item.name), let intVal = Int(value) {
+                params[item.name] = AnyCodable(intVal)
+            } else if Self.booleanParams.contains(item.name), let boolVal = Bool(value) {
+                params[item.name] = AnyCodable(boolVal)
+            } else {
+                params[item.name] = AnyCodable(value)
             }
         }
 
@@ -247,6 +293,24 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
     // MARK: - Private Helpers
 
+    /// Query-item names whose values are integers in the A2A method schemas.
+    private static let integerParams: Set<String> = ["historyLength", "pageSize"]
+
+    /// Query-item names whose values are booleans in the A2A method schemas.
+    private static let booleanParams: Set<String> = ["includeArtifacts"]
+
+    /// Drains a chunk stream into a `Data`, stopping at `limit` bytes.
+    /// Used for non-SSE bodies on streaming endpoints, which are small
+    /// error envelopes.
+    private static func collect(_ chunks: AsyncThrowingStream<Data, Error>, upTo limit: Int) async throws -> Data {
+        var data = Data()
+        for try await chunk in chunks {
+            data.append(chunk)
+            if data.count >= limit { break }
+        }
+        return data
+    }
+
     private func buildRequest<Body: Encodable>(
         body: Body,
         acceptSSE: Bool = false
@@ -262,12 +326,10 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Accept")
         }
 
-        // Copy httpAdditionalHeaders from the configured session — streaming uses
-        // URLSession.shared, so session-level headers must be applied per-request.
-        if let additionalHeaders = session.configuration.httpAdditionalHeaders as? [String: String] {
-            for (key, value) in additionalHeaders {
-                request.setValue(value, forHTTPHeaderField: key)
-            }
+        // Apply session-level headers per-request — streaming uses
+        // URLSession.shared, which doesn't carry them.
+        for (key, value) in sessionHeaders {
+            request.setValue(value, forHTTPHeaderField: key)
         }
 
         // Add service parameter headers

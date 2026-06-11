@@ -178,7 +178,10 @@ public struct TaskStatusUpdateEvent: Codable, Sendable, Equatable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode("status-update", forKey: .kind)
+        // The `kind` discriminator is v0.3-only; v1.0 strict decoders reject it.
+        if encoder.encodesA2AV03 {
+            try container.encode("status-update", forKey: .kind)
+        }
         try container.encode(taskId, forKey: .taskId)
         try container.encode(contextId, forKey: .contextId)
         try container.encode(status, forKey: .status)
@@ -248,7 +251,10 @@ public struct TaskArtifactUpdateEvent: Codable, Sendable, Equatable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode("artifact-update", forKey: .kind)
+        // The `kind` discriminator is v0.3-only; v1.0 strict decoders reject it.
+        if encoder.encodesA2AV03 {
+            try container.encode("artifact-update", forKey: .kind)
+        }
         try container.encode(taskId, forKey: .taskId)
         try container.encode(contextId, forKey: .contextId)
         try container.encode(artifact, forKey: .artifact)

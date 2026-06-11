@@ -67,7 +67,10 @@ public struct A2ATask: Codable, Sendable, Equatable, Identifiable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode("task", forKey: .kind)
+        // The `kind` discriminator is v0.3-only; v1.0 strict decoders reject it.
+        if encoder.encodesA2AV03 {
+            try container.encode("task", forKey: .kind)
+        }
         try container.encode(id, forKey: .id)
         try container.encode(contextId, forKey: .contextId)
         try container.encode(status, forKey: .status)

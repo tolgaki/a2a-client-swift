@@ -171,6 +171,16 @@ public struct A2AEndpoint: Sendable, Equatable {
 /// When set to a version starting with "0.", enums encode as v0.3 lowercase values.
 public let a2aProtocolVersionKey = CodingUserInfoKey(rawValue: "a2aProtocolVersion")!
 
+extension Encoder {
+    /// True when encoding for a v0.3 peer. v0.3 wire shapes carry `kind`
+    /// discriminators and lowercase enum values; v1.0 shapes omit `kind`
+    /// (strict protojson decoders reject unknown fields) and use
+    /// field-presence oneofs instead.
+    var encodesA2AV03: Bool {
+        (userInfo[a2aProtocolVersionKey] as? String)?.hasPrefix("0.") ?? false
+    }
+}
+
 /// HTTP methods used by the A2A protocol.
 public enum HTTPMethod: String, Sendable {
     case get = "GET"

@@ -11,6 +11,9 @@
 // - Use secure credential storage (Keychain) in your app before passing to these providers
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Protocol for providing authentication to A2A requests.
 ///
