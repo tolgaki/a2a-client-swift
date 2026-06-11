@@ -123,6 +123,41 @@ final class ClientConfigurationTests: XCTestCase {
         XCTAssertNotNil(config.authenticationProvider)
     }
 
+    func testFromAgentCard_SkipsUnsupportedBindings() throws {
+        // §8.3.2: select the first interface with a binding this client
+        // supports — an unsupported GRPC entry listed first must be skipped.
+        let card = AgentCard(
+            name: "Test Agent",
+            description: "A test agent",
+            supportedInterfaces: [
+                AgentInterface(url: "grpc://agent.example.com:443", protocolBinding: "GRPC", protocolVersion: "1.0"),
+                AgentInterface(url: "https://agent.example.com/rpc", protocolBinding: "JSONRPC", protocolVersion: "1.0"),
+                AgentInterface(url: "https://agent.example.com", protocolBinding: "HTTP+JSON", protocolVersion: "1.0"),
+            ],
+            version: "1.0.0"
+        )
+
+        let config = try A2AClientConfiguration.from(agentCard: card)
+
+        XCTAssertEqual(config.baseURL.absoluteString, "https://agent.example.com/rpc")
+        XCTAssertEqual(config.transportBinding, .jsonRPC)
+    }
+
+    func testFromAgentCard_NoSupportedBindingThrowsError() {
+        let card = AgentCard(
+            name: "Test Agent",
+            description: "A test agent",
+            supportedInterfaces: [
+                AgentInterface(url: "grpc://agent.example.com:443", protocolBinding: "GRPC", protocolVersion: "1.0")
+            ],
+            version: "1.0.0"
+        )
+
+        XCTAssertThrowsError(try A2AClientConfiguration.from(agentCard: card)) { error in
+            XCTAssertTrue(error is A2AError)
+        }
+    }
+
     func testFromAgentCard_InvalidURLThrowsError() {
         let card = AgentCard(
             name: "Test Agent",

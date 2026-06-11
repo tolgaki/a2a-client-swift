@@ -41,6 +41,9 @@
 
 import A2AClient
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 @main
 struct AuthShowcase {

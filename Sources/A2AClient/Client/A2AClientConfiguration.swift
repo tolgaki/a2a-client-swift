@@ -4,6 +4,9 @@
 // Agent2Agent Protocol - Client Configuration
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// Configuration for an A2A client.
 public struct A2AClientConfiguration: Sendable {
@@ -62,24 +65,41 @@ public struct A2AClientConfiguration: Sendable {
         authenticationProvider: (any AuthenticationProvider)? = nil,
         jsonKeyCasing: JSONKeyCasing = .camelCase
     ) throws -> A2AClientConfiguration {
-        // Use the first (preferred) interface
-        guard let interface = agentCard.supportedInterfaces.first else {
+        // Spec §8.3.2: walk supportedInterfaces in order and select the first
+        // interface whose protocol binding this client can speak. Earlier
+        // entries are preferred; bindings we don't implement (e.g. GRPC)
+        // are skipped rather than silently mis-mapped.
+        func binding(for interface: AgentInterface) -> TransportBinding? {
+            switch interface.protocolBinding.uppercased() {
+            case "JSONRPC":
+                return .jsonRPC
+            case "HTTP+JSON", "HTTPJSON":
+                return .httpREST
+            default:
+                return nil
+            }
+        }
+
+        guard !agentCard.supportedInterfaces.isEmpty else {
             throw A2AError.invalidRequest(message: "Agent card has no supported interfaces")
+        }
+
+        var selected: (interface: AgentInterface, binding: TransportBinding)?
+        for candidate in agentCard.supportedInterfaces {
+            if let transportBinding = binding(for: candidate) {
+                selected = (candidate, transportBinding)
+                break
+            }
+        }
+        guard let (interface, transportBinding) = selected else {
+            let offered = agentCard.supportedInterfaces.map(\.protocolBinding).joined(separator: ", ")
+            throw A2AError.invalidRequest(
+                message: "Agent card has no interface with a supported protocol binding. Offered: [\(offered)]; supported: [JSONRPC, HTTP+JSON]"
+            )
         }
 
         guard let baseURL = URL(string: interface.url) else {
             throw A2AError.invalidRequest(message: "Invalid agent URL: \(interface.url)")
-        }
-
-        // Map protocol binding string to enum
-        let transportBinding: TransportBinding
-        switch interface.protocolBinding.uppercased() {
-        case "JSONRPC":
-            transportBinding = .jsonRPC
-        case "HTTP+JSON", "HTTPJSON":
-            transportBinding = .httpREST
-        default:
-            transportBinding = .httpREST
         }
 
         // The HTTP+JSON (REST) binding was introduced in v1.0; v0.3 agents

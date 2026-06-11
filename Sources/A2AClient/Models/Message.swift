@@ -143,7 +143,10 @@ public struct Message: Codable, Sendable, Equatable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
-        try container.encode("message", forKey: .kind)
+        // The `kind` discriminator is v0.3-only; v1.0 strict decoders reject it.
+        if encoder.encodesA2AV03 {
+            try container.encode("message", forKey: .kind)
+        }
         try container.encode(messageId, forKey: .messageId)
         try container.encode(role, forKey: .role)
         try container.encode(parts, forKey: .parts)

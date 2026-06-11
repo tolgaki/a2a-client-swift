@@ -4,6 +4,9 @@
 // Agent2Agent Protocol - HTTP/REST Transport Implementation
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// HTTP/REST transport implementation for A2A protocol.
 ///

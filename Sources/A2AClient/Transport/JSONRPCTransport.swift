@@ -4,6 +4,9 @@
 // Agent2Agent Protocol - JSON-RPC 2.0 Transport Implementation
 
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// JSON-RPC 2.0 transport implementation for A2A protocol.
 ///

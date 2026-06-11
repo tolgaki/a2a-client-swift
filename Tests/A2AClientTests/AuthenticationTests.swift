@@ -5,6 +5,9 @@
 
 import XCTest
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 @testable import A2AClient
 
 final class AuthenticationTests: XCTestCase {

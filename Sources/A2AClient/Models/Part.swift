@@ -125,15 +125,17 @@ public struct Part: Codable, Sendable, Equatable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
-        // Encode kind discriminator
-        if text != nil {
-            try container.encode("text", forKey: .kind)
-        } else if raw != nil {
-            try container.encode("file", forKey: .kind)
-        } else if url != nil {
-            try container.encode("file", forKey: .kind)
-        } else if data != nil {
-            try container.encode("data", forKey: .kind)
+        // The `kind` discriminator is v0.3-only; v1.0 strict decoders reject it.
+        if encoder.encodesA2AV03 {
+            if text != nil {
+                try container.encode("text", forKey: .kind)
+            } else if raw != nil {
+                try container.encode("file", forKey: .kind)
+            } else if url != nil {
+                try container.encode("file", forKey: .kind)
+            } else if data != nil {
+                try container.encode("data", forKey: .kind)
+            }
         }
 
         // Encode content fields (only one should be set)
