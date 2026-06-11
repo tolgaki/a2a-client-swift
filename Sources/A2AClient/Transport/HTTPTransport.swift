@@ -22,6 +22,11 @@ public final class HTTPTransport: A2ATransport, Sendable {
     private let serviceParameters: A2AServiceParameters
     private let authenticationProvider: AuthenticationProvider?
 
+    /// Session-level headers, captured once — `session.configuration`
+    /// copies the configuration object on every access, and a session's
+    /// configuration cannot change after creation.
+    private let sessionHeaders: [String: String]
+
     public init(
         baseURL: URL,
         session: URLSession = .shared,
@@ -32,6 +37,7 @@ public final class HTTPTransport: A2ATransport, Sendable {
         self.session = session
         self.serviceParameters = serviceParameters
         self.authenticationProvider = authenticationProvider
+        self.sessionHeaders = session.configuration.httpAdditionalHeaders as? [String: String] ?? [:]
     }
 
     private func makeEncoder() -> JSONEncoder {
@@ -222,12 +228,10 @@ public final class HTTPTransport: A2ATransport, Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Accept")
         }
 
-        // Copy httpAdditionalHeaders from the configured session — streaming uses
-        // URLSession.shared, so session-level headers must be applied per-request.
-        if let additionalHeaders = session.configuration.httpAdditionalHeaders as? [String: String] {
-            for (key, value) in additionalHeaders {
-                request.setValue(value, forHTTPHeaderField: key)
-            }
+        // Apply session-level headers per-request — streaming uses
+        // URLSession.shared, which doesn't carry them.
+        for (key, value) in sessionHeaders {
+            request.setValue(value, forHTTPHeaderField: key)
         }
 
         // Add service parameter headers
@@ -360,6 +364,13 @@ public final class HTTPTransport: A2ATransport, Sendable {
                 } else if let message = try? decoder.decode(Message.self, from: data) {
                     return .message(message)
                 }
+            }
+
+            // Servers may terminate a stream with an error frame instead of
+            // an event — surface it as the proper A2AError rather than a
+            // generic decode failure.
+            if let restError = tryDecodeRESTError(from: data) {
+                throw restError
             }
 
             let snippet = String(data: data.prefix(200), encoding: .utf8) ?? "<non-utf8 bytes>"

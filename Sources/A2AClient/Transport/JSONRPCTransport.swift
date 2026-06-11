@@ -23,6 +23,11 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
     private let serviceParameters: A2AServiceParameters
     private let authenticationProvider: AuthenticationProvider?
 
+    /// Session-level headers, captured once — `session.configuration`
+    /// copies the configuration object on every access, and a session's
+    /// configuration cannot change after creation.
+    private let sessionHeaders: [String: String]
+
     /// Counter for generating unique request IDs.
     private let requestIdCounter = AtomicCounter()
 
@@ -36,6 +41,7 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
         self.session = session
         self.serviceParameters = serviceParameters
         self.authenticationProvider = authenticationProvider
+        self.sessionHeaders = session.configuration.httpAdditionalHeaders as? [String: String] ?? [:]
     }
 
     private func makeEncoder() -> JSONEncoder {
@@ -176,17 +182,19 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
     ) async throws -> Response {
         // JSON-RPC wraps all requests as POST with method names.
         // Convert query items into a params dictionary for the RPC call.
+        // Param types come from the A2A method schemas, not from the textual
+        // shape of the value: only coerce fields the schemas declare as
+        // numeric or boolean. Everything else (ids, tokens) must stay a
+        // string even when it happens to look like a number.
         var params: [String: AnyCodable] = [:]
         for item in queryItems {
-            if let value = item.value {
-                // Try to preserve numeric types for JSON-RPC params
-                if let intVal = Int(value) {
-                    params[item.name] = AnyCodable(intVal)
-                } else if let boolVal = Bool(value) {
-                    params[item.name] = AnyCodable(boolVal)
-                } else {
-                    params[item.name] = AnyCodable(value)
-                }
+            guard let value = item.value else { continue }
+            if Self.integerParams.contains(item.name), let intVal = Int(value) {
+                params[item.name] = AnyCodable(intVal)
+            } else if Self.booleanParams.contains(item.name), let boolVal = Bool(value) {
+                params[item.name] = AnyCodable(boolVal)
+            } else {
+                params[item.name] = AnyCodable(value)
             }
         }
 
@@ -250,6 +258,12 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
     // MARK: - Private Helpers
 
+    /// Query-item names whose values are integers in the A2A method schemas.
+    private static let integerParams: Set<String> = ["historyLength", "pageSize"]
+
+    /// Query-item names whose values are booleans in the A2A method schemas.
+    private static let booleanParams: Set<String> = ["includeArtifacts"]
+
     private func buildRequest<Body: Encodable>(
         body: Body,
         acceptSSE: Bool = false
@@ -265,12 +279,10 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
             request.setValue("application/json", forHTTPHeaderField: "Accept")
         }
 
-        // Copy httpAdditionalHeaders from the configured session — streaming uses
-        // URLSession.shared, so session-level headers must be applied per-request.
-        if let additionalHeaders = session.configuration.httpAdditionalHeaders as? [String: String] {
-            for (key, value) in additionalHeaders {
-                request.setValue(value, forHTTPHeaderField: key)
-            }
+        // Apply session-level headers per-request — streaming uses
+        // URLSession.shared, which doesn't carry them.
+        for (key, value) in sessionHeaders {
+            request.setValue(value, forHTTPHeaderField: key)
         }
 
         // Add service parameter headers
