@@ -89,6 +89,35 @@ final class StreamingTests: XCTestCase {
         XCTAssertEqual(decoded.artifact.name, "result")
     }
 
+    // MARK: - SSE Line Splitter Tests
+
+    func testSSELineSplitter_SplitsCompleteLines() {
+        var splitter = SSELineSplitter()
+        let lines = splitter.push(Data("data: one\ndata: two\n".utf8))
+        XCTAssertEqual(lines, ["data: one", "data: two"])
+        XCTAssertNil(splitter.flush())
+    }
+
+    func testSSELineSplitter_BuffersAcrossChunkBoundaries() {
+        var splitter = SSELineSplitter()
+        XCTAssertEqual(splitter.push(Data("data: par".utf8)), [])
+        XCTAssertEqual(splitter.push(Data("tial\ndata: ne".utf8)), ["data: partial"])
+        XCTAssertEqual(splitter.push(Data("xt\n".utf8)), ["data: next"])
+    }
+
+    func testSSELineSplitter_HandlesCRLF() {
+        var splitter = SSELineSplitter()
+        let lines = splitter.push(Data("data: a\r\n\r\ndata: b\r\n".utf8))
+        XCTAssertEqual(lines, ["data: a", "", "data: b"])
+    }
+
+    func testSSELineSplitter_FlushReturnsUnterminatedTail() {
+        var splitter = SSELineSplitter()
+        XCTAssertEqual(splitter.push(Data("data: done\ntail".utf8)), ["data: done"])
+        XCTAssertEqual(splitter.flush(), "tail")
+        XCTAssertNil(splitter.flush())
+    }
+
     // MARK: - SSE Parser Tests
 
     func testSSEParser_ParseSimpleDataEvent() {

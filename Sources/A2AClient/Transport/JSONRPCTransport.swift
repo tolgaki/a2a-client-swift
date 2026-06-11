@@ -139,20 +139,28 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
         let urlRequest = try await buildRequest(body: rpcRequest, acceptSSE: true)
 
-        // Establish the HTTP connection BEFORE creating the AsyncThrowingStream.
-        // This avoids a race where the unstructured Task inside the stream closure
-        // may not start (or bytes(for:) may not return) before the consumer iterates.
-        let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
-        try validateHTTPResponse(response)
+        // Delegate-backed connection: chunks arrive incrementally on both
+        // Darwin and Linux (URLSession.bytes does not stream reliably on
+        // corelibs-foundation). The response head is awaited up front so
+        // pre-stream failures throw from this call, not from iteration.
+        let connection = SSEConnection()
+        let (httpResponse, chunks) = try await connection.connect(request: urlRequest)
+
+        do {
+            try validateHTTPResponse(httpResponse)
+        } catch {
+            connection.cancel()
+            throw error
+        }
 
         // A server that fails before opening the stream answers HTTP 200 with
         // a plain JSON error body instead of text/event-stream (§9.4.2).
         // Without this check that body parses as zero SSE events and the
         // error is silently swallowed.
-        if let httpResponse = response as? HTTPURLResponse,
-           let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
+        if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
            !contentType.lowercased().contains("text/event-stream") {
-            let data = try await Self.collect(bytes, upTo: 1 << 20)
+            defer { connection.cancel() }
+            let data = try await Self.collect(chunks, upTo: 1 << 20)
             if let rpcResponse = try? makeDecoder().decode(JSONRPCResponse<AnyCodable>.self, from: data),
                let error = rpcResponse.error {
                 throw error.toA2AError()
@@ -167,15 +175,23 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
             let streamTask = _Concurrency.Task {
                 do {
                     let parser = SSEParser()
+                    var splitter = SSELineSplitter()
 
-                    for try await line in bytes.lines {
-                        if let event = parser.parse(line: line) {
-                            let streamingEvent = try decodeStreamingEvent(from: event)
-                            continuation.yield(streamingEvent)
+                    for try await chunk in chunks {
+                        for line in splitter.push(chunk) {
+                            if let event = parser.parse(line: line) {
+                                let streamingEvent = try decodeStreamingEvent(from: event)
+                                continuation.yield(streamingEvent)
+                            }
                         }
                     }
 
-                    // Flush any remaining buffered event (last data: line with no trailing blank line)
+                    // Flush a final unterminated line, then any buffered event
+                    // (last data: line with no trailing blank line).
+                    if let tail = splitter.flush(), let event = parser.parse(line: tail) {
+                        let streamingEvent = try decodeStreamingEvent(from: event)
+                        continuation.yield(streamingEvent)
+                    }
                     if let event = parser.parse(line: "") {
                         let streamingEvent = try decodeStreamingEvent(from: event)
                         continuation.yield(streamingEvent)
@@ -189,6 +205,7 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
 
             continuation.onTermination = { _ in
                 streamTask.cancel()
+                connection.cancel()
             }
         }
     }
@@ -282,13 +299,13 @@ public final class JSONRPCTransport: A2ATransport, Sendable {
     /// Query-item names whose values are booleans in the A2A method schemas.
     private static let booleanParams: Set<String> = ["includeArtifacts"]
 
-    /// Drains an async byte stream into a `Data`, stopping at `limit` bytes.
+    /// Drains a chunk stream into a `Data`, stopping at `limit` bytes.
     /// Used for non-SSE bodies on streaming endpoints, which are small
     /// error envelopes.
-    private static func collect(_ bytes: URLSession.AsyncBytes, upTo limit: Int) async throws -> Data {
+    private static func collect(_ chunks: AsyncThrowingStream<Data, Error>, upTo limit: Int) async throws -> Data {
         var data = Data()
-        for try await byte in bytes {
-            data.append(byte)
+        for try await chunk in chunks {
+            data.append(chunk)
             if data.count >= limit { break }
         }
         return data

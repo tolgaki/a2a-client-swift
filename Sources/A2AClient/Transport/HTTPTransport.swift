@@ -89,20 +89,22 @@ public final class HTTPTransport: A2ATransport, Sendable {
     ) async throws -> AsyncThrowingStream<StreamingEvent, Error> {
         let urlRequest = try await buildRequest(for: endpoint, body: request, acceptSSE: true)
 
-        // Establish the HTTP connection BEFORE creating the AsyncThrowingStream.
-        // This avoids a race where the unstructured Task inside the stream closure
-        // may not start (or bytes(for:) may not return) before the consumer iterates.
-        let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw A2AError.invalidResponse(message: "Invalid response type")
-        }
+        // Delegate-backed connection: chunks arrive incrementally on both
+        // Darwin and Linux (URLSession.bytes does not stream reliably on
+        // corelibs-foundation). The response head is awaited up front so
+        // pre-stream failures throw from this call, not from iteration.
+        let connection = SSEConnection()
+        let (httpResponse, chunks) = try await connection.connect(request: urlRequest)
 
         // Non-2xx: collect the body so the typed error it carries (AIP-193
         // or flat) is thrown instead of a generic status-code error.
         if !(200...299).contains(httpResponse.statusCode) {
-            let body = try? await Self.collect(bytes, upTo: 1 << 20)
-            try validateResponse(response, data: body)
+            defer { connection.cancel() }
+            let body = try? await Self.collect(chunks, upTo: 1 << 20)
+            try validateResponse(httpResponse, data: body)
+            // validateResponse always throws for non-2xx; keep the compiler
+            // and any future refactor honest.
+            throw A2AError.internalError(message: "HTTP \(httpResponse.statusCode)")
         }
 
         // A server that fails before opening the stream may answer 2xx with
@@ -111,7 +113,8 @@ public final class HTTPTransport: A2ATransport, Sendable {
         // error is silently swallowed.
         if let contentType = httpResponse.value(forHTTPHeaderField: "Content-Type"),
            !contentType.lowercased().contains("text/event-stream") {
-            let data = try await Self.collect(bytes, upTo: 1 << 20)
+            defer { connection.cancel() }
+            let data = try await Self.collect(chunks, upTo: 1 << 20)
             if let error = tryDecodeRESTError(from: data) {
                 throw error
             }
@@ -125,15 +128,23 @@ public final class HTTPTransport: A2ATransport, Sendable {
             let streamTask = _Concurrency.Task {
                 do {
                     let parser = SSEParser()
+                    var splitter = SSELineSplitter()
 
-                    for try await line in bytes.lines {
-                        if let event = parser.parse(line: line) {
-                            let streamingEvent = try decodeStreamingEvent(from: event)
-                            continuation.yield(streamingEvent)
+                    for try await chunk in chunks {
+                        for line in splitter.push(chunk) {
+                            if let event = parser.parse(line: line) {
+                                let streamingEvent = try decodeStreamingEvent(from: event)
+                                continuation.yield(streamingEvent)
+                            }
                         }
                     }
 
-                    // Flush any remaining buffered event (last data: line with no trailing blank line)
+                    // Flush a final unterminated line, then any buffered event
+                    // (last data: line with no trailing blank line).
+                    if let tail = splitter.flush(), let event = parser.parse(line: tail) {
+                        let streamingEvent = try decodeStreamingEvent(from: event)
+                        continuation.yield(streamingEvent)
+                    }
                     if let event = parser.parse(line: "") {
                         let streamingEvent = try decodeStreamingEvent(from: event)
                         continuation.yield(streamingEvent)
@@ -147,6 +158,7 @@ public final class HTTPTransport: A2ATransport, Sendable {
 
             continuation.onTermination = { _ in
                 streamTask.cancel()
+                connection.cancel()
             }
         }
     }
@@ -208,13 +220,13 @@ public final class HTTPTransport: A2ATransport, Sendable {
 
     // MARK: - Private Helpers
 
-    /// Drains an async byte stream into a `Data`, stopping at `limit` bytes.
+    /// Drains a chunk stream into a `Data`, stopping at `limit` bytes.
     /// Used for non-SSE bodies on streaming endpoints, which are small
     /// error envelopes.
-    private static func collect(_ bytes: URLSession.AsyncBytes, upTo limit: Int) async throws -> Data {
+    private static func collect(_ chunks: AsyncThrowingStream<Data, Error>, upTo limit: Int) async throws -> Data {
         var data = Data()
-        for try await byte in bytes {
-            data.append(byte)
+        for try await chunk in chunks {
+            data.append(chunk)
             if data.count >= limit { break }
         }
         return data
